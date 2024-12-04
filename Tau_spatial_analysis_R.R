@@ -209,8 +209,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
   
   plot_data <- grid_coord %>% `colnames<-`(c("ID", "X", "Y"))
   # Merge tables to include period data
-  merged_data <- plot_data %>%
-    left_join(period_tbl, by = "ID")
+  merged_data <- left_join(plot_data, period_table, by = "ID")
   
   # Choose the variable to visualize (e.g., period, amplitude, error)
   variable <- variable
@@ -263,8 +262,7 @@ highlight_cells_period_circ = function(all_cells = grid_coord, period_table, var
   
   plot_data <- grid_coord %>% `colnames<-`(c("ID", "X", "Y"))
   # Merge tables to include period data
-  merged_data <- plot_data %>%
-    left_join(period_tbl, by = "ID")
+  merged_data <- left_join(plot_data, period_table, by = "ID")
   
   colorscheme = c("#04305C", "#245380", "#4376A4", "#8BB09D", "#D2EA96", "#E8F4A8", "#FEFEB9", "#FEDD96", "#FDBC73", "#E08258", "#C2473D", "#8E3334", "#591F2B")
   
@@ -1021,6 +1019,18 @@ for (i in seq(from = 1, to = length(files))){
   period_summary_list <- summarizePeriod(period_tbl)
   
   # SPATIAL MAPS ####
+
+  # map of red values
+  # get single value for red channel
+  ch1_cells_median = data.frame(ID = as.integer(rownames(ch1_cells)), 
+                                   Intensity = matrixStats::rowMedians(ch1_cells))
+  
+  spatial_red <- highlight_cells_period(period_table = ch1_cells_median, variable = "Intensity", filename = filename, colorcode = "red")
+  # map of green values
+  ch2_cells_median = data.frame(ID = as.integer(rownames(ch2_cells)), 
+                                SD = matrixStats::rowSds(ch2_cells))
+  
+  spatial_green <- highlight_cells_period(period_table = ch2_cells_median, variable = "SD", filename = filename, colorcode = "green")
   
   # plot period distribution
   spatial_period <- highlight_cells_period(period_table = period_tbl, variable = "period", filename = filename, colorcode = "purple")
@@ -1033,7 +1043,8 @@ for (i in seq(from = 1, to = length(files))){
   if(saving){
     savePlots(obj_to_save = list(spatial_period = spatial_period, spatial_amplitude = spatial_amplitude,
                                  spatial_error = spatial_error, spatial_phases = spatial_phases,
-                                 spatial_phases_circ = spatial_phases_circ), filename = filename, basepath = newdir, extension = "svg", p.width = 300, p.height = 347)}
+                                 spatial_phases_circ = spatial_phases_circ, spatial_fred = spatial_red,
+                                 spatial_green = spatial_green), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
   
   # PARTICLE-CELLS DISTANCES AND PLOT ####
   
@@ -1096,7 +1107,7 @@ for (i in seq(from = 1, to = length(files))){
   
   #' save plot
   if(saving){
-    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 300, p.height = 347)}
+    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
   
   # MERGE PERIOD AND PARTICLE ANALYSIS ####
   
@@ -1209,6 +1220,8 @@ pull_plots(wd, plot.name = "groups_cells_plot.svg", dir.name = "group_maps", fil
 pull_plots(wd, plot.name = "spatial_amplitude.svg", dir.name = "spatial_amp", file.names = filenames)
 pull_plots(wd, plot.name = "spatial_period.svg", dir.name = "spatial_per", file.names = filenames)
 pull_plots(wd, plot.name = "spatial_error.svg", dir.name = "spatial_err", file.names = filenames)
+pull_plots(wd, plot.name = "spatial_fred.svg", dir.name = "spatial_fred", file.names = filenames)
+pull_plots(wd, plot.name = "spatial_green.svg", dir.name = "spatial_green", file.names = filenames)
 pull_plots(wd, plot.name = "spatial_phases_circ.svg", dir.name = "spatial_phase", file.names = filenames)
 
 
