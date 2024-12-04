@@ -9,7 +9,7 @@
  #' sp
  #' RImageJROI
 
-# install and load required packages
+ # install and load required packages ####
 pkg_req <- c("sf", "RImageJROI", "ggplot2", "dplyr", "pracma", "minpack.lm", "magrittr", "stringr", "circular", "svglite", "astsa", "pdftools", "scico", "ggpubr", "rstatix", "matrixStats", "gridGraphics")
 
 # Install and load packages if not already installed
@@ -20,7 +20,7 @@ for (package in pkg_req) {
   library(package, character.only = TRUE)
 }
 
-#### FUNCTIONS ####
+ # FUNCTIONS ####
 #' function to import a single ROI
 importROI = function(path){
   roi_path = stringr::str_replace_all(path, "\\\\", "//")
@@ -920,7 +920,8 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
     file.copy(file, destination.path, overwrite = TRUE, )
   }, plots.dir.second)
 }
-#### IMPORTS #####
+
+ # FILEPATHS -----
 
  #' Base directory
  wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Science\Lab\Main_proj\4_extra\Tau_an_dev\wk5_hemislices\Left\test)"
@@ -937,8 +938,12 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
  circ_summary = data.frame(matrix(nrow = 1, ncol = 9))
  colnames(circ_summary) = c("close_vec_len", "close_variance", "close_meanPh", "mid_vec_len", "mid_variance", "mid_meanPh", "far_vec_len", "far_variance", "far_meanPh")
 
+ # EXECUTION ===== 
+ 
  #' start for cycle here
   for (i in seq(from = 1, to = length(files))){
+
+ # FILE IMPORTING ####
 
  foldername = foldernames[i]
  filename = filenames[i]
@@ -977,8 +982,6 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
  saveRDS(tau_polygons, file = tau_polygons_path)
  }
 
-#### EXECUTION #####
-
  #' Create folder where to save all outputs
  newdir = file.path(foldername, "spatial_analysis")
 
@@ -986,6 +989,8 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
    dir.create(newdir)
  }
 
+ # MANAGE ROIs AND CELLS ####
+ 
  #' divide ROIs based on frame, nesting the list
  names_frames <- sapply(names(tau_polygons), strsplit, "[-]") %>% data.table::data.table(do.call(rbind, .))
  colnames(names_frames) = c("ROI", "frame", "num", "YM")
@@ -1000,10 +1005,8 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
  ch1_cells = ch1_grid_vals[within_scn, ]
  ch2_cells = ch2_grid_vals[within_scn, ]
 
- #' initialize table to store values (useful for cycling through files)
-    # FFT_vals <- createFFTtbl()
- # add characterization of rhythms with FFT_NLLS
-
+ # PERIOD ANALYSIS ####
+ 
  # analyze period
  period_tbl_path = file.path(foldername, paste(filename, "_period_tbl.rds", sep = ""))
  if(file.exists(period_tbl_path)){
@@ -1016,10 +1019,8 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
  # get summary of data
  period_summary_list <- summarizePeriod(period_tbl)
 
- # add period parameters to vector to then create a table
-     # FFT_vals <-  updateFFTtbl(old_list = FFT_vals, new_list = out_list, filename = filename)
-     # print(stringr::str_c(filename, " has been analysed."))
-
+ # SPATIAL MAPS ####
+ 
  # plot period distribution
  spatial_period <- highlight_cells_period(period_table = period_tbl, variable = "period", filename = filename, colorcode = "purple")
  spatial_amplitude <- highlight_cells_period(period_table = period_tbl, variable = "amplitude", filename = filename, colorcode = "green", sdFactor = 3.5)
@@ -1033,8 +1034,9 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
                               spatial_error = spatial_error, spatial_phases = spatial_phases,
                               spatial_phases_circ = spatial_phases_circ), filename = filename, basepath = newdir, extension = "svg", p.width = 800, p.height = 1420)}
 
+ # PARTICLE-CELLS DISTANCES AND PLOT ####
+ 
  #'calculate min distance of all cells to particles
-
  grid_vals_path = file.path(foldername, paste(filename, "_grid_vals.rds", sep = ""))
  if(file.exists(grid_vals_path)){
    grid_vals <- readRDS(grid_vals_path)
@@ -1095,21 +1097,8 @@ distance_matrix_median <- round(matrixStats::rowMedians(distance_matrix), 3)
  if(saving){
  savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 750, p.height = 1250)}
 
- # close_cells_plot = highlight_cells(list(close_cells_matrix), frame = 2, colors = c("#B23A48"))
- # far_cells_plot = highlight_cells(list(far_cells_matrix), frame = 40, colors = c("#2F9C95"))
- # between_cells_plot = highlight_cells(list(between_cells_matrix), frame = 40, colors = c("#B6DC76"))
-
- #' Extract IDs and TS of cells close to particles
- # close_cells_IDs = which(close_cells_matrix[, 2] == TRUE) %>% names()
- # close_cells_ch2_TS = ch2_cells[rownames = close_cells_IDs ,]
-
- #' plot timeseries of cells in specific regions from particles
- # plot_TS <- t(close_cells_ch2_TS) %>% as.data.frame() %>% cbind("Time" = seq(from = 0, length.out = length(plot_TS[, 1]), by = 0.5), .)
- # plot_TS_long <- tidyr::pivot_longer(plot_TS, cols = c(2:length(plot_TS[1,])), values_to = "intensity", names_to = "ID") %>% order("ID")
- #
- # plot_TS <- ggplot2::ggplot(data = plot_TS_long, ggplot2::aes(x = Time, y = intensity, color = ID))+
-   # geom_line() #TODO add color or grouping based on distance from particles
-
+ # MERGE PERIOD AND PARTICLE ANALYSIS ####
+ 
  # analysis to visualize circadian parameters in relation to the distance from plaques
  distance_table <- cbind(as.numeric(rownames(distance_matrix)), as.numeric(distance_matrix_median)) %>% `colnames<-`(c("ID", "distance"))#paste("Distance_f", frame, sep = "")))
  # create a median versio of the distance table to merge with the pariod table
@@ -1127,6 +1116,8 @@ distance_matrix_median <- round(matrixStats::rowMedians(distance_matrix), 3)
  merged_tbl_path = file.path(foldername, paste(filename, "_merged_tbl.rds", sep = ""))
  saveRDS(merged_table, file = merged_tbl_path)
 
+ # CIRCADIAN PARAMS PLOTS ####
+ 
  # Period vs Distance
  period_boxplot <- metric_mean_plot(data = merged_table, metric = period, grouping_var = distance_group, plot_colors = color_palette)
 
@@ -1141,6 +1132,41 @@ distance_matrix_median <- round(matrixStats::rowMedians(distance_matrix), 3)
  savePlots(obj_to_save = list(period_boxplot_w = period_boxplot, amplitude_boxplot_w = amplitude_boxplot,
                            error_boxplot_w = error_boxplot), filename = filename, basepath = newdir, extension = "svg", p.width = 1500, p.height = 800)}
 
+ # Period vs Distance
+ period_dotplot_trace <- ggplot(merged_table, aes(x = distance, y = period)) +
+   #geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
+   geom_smooth(aes(colour = distance_group), method = "lm", se =  TRUE, level = 0.95) +
+   scale_color_manual(values = color_palette)+
+   ylim(22.5, 24.5) +
+   theme_minimal() +
+   labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
+ 
+ # Amplitude vs Distance
+ amplitude_dotplot_trace <- ggplot(merged_table, aes(x = distance, y = amplitude)) +
+   #geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
+   geom_smooth(aes(colour = distance_group), method = "lm", se = TRUE, level = 0.95) +
+   scale_color_manual(values = color_palette)+
+   ylim(0, 130) +
+   theme_minimal() +
+   labs(title = "Amplitude by Distance", x = "Distance from Particle (px)", y = "Amplitude (A.U.)")
+ 
+ 
+ # Error vs Distance
+ error_dotplot_trace <- ggplot(merged_table, aes(x = distance, y = error)) +
+   #geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
+   geom_smooth(aes(colour = distance_group), method = "lm", se =  TRUE, level = 0.95) +
+   theme_minimal() +
+   scale_color_manual(values = color_palette)+
+   ylim(0, 30) +
+   labs(title = "Error by Distance", x = "Distance from Particle (px)", y = "Error (A.U.)")
+ 
+ # Save plots
+ if(savingtRACE){
+   savePlots(obj_to_save = list(period_dotplot_trace = period_dotplot_trace, amplitude_dotplot_trace = amplitude_dotplot_trace, error_dotplot_trace = error_dotplot_trace),
+             filename = filename, basepath = newdir, extension = "svg", p.width = 1800, p.height = 1000)}
+ 
+ # PHASE PLOTS ####
+ 
  # Phase vs distance
 groups <- unique(merged_table$distance_group)
  # add raileygh plots
@@ -1168,49 +1194,15 @@ groups <- unique(merged_table$distance_group)
  circStats_plot(newrecord, path = file.path(newdir, paste0(filename, "_phases_summary.svg")), colors = color_palette)
 
 
- # Period vs Distance
-
- period_dotplot_trace <- ggplot(merged_table, aes(x = distance, y = period)) +
-                         #geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
-                        geom_smooth(aes(colour = distance_group), method = "lm", se =  TRUE, level = 0.95) +
-                        scale_color_manual(values = color_palette)+
-                        ylim(22.5, 24.5) +
-                        theme_minimal() +
-                        labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
-
- # Amplitude vs Distance
- amplitude_dotplot_trace <- ggplot(merged_table, aes(x = distance, y = amplitude)) +
-                       #geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
-                       geom_smooth(aes(colour = distance_group), method = "lm", se = TRUE, level = 0.95) +
-                       scale_color_manual(values = color_palette)+
-                       ylim(0, 130) +
-                       theme_minimal() +
-                       labs(title = "Amplitude by Distance", x = "Distance from Particle (px)", y = "Amplitude (A.U.)")
-
-
- # Error vs Distance
- error_dotplot_trace <- ggplot(merged_table, aes(x = distance, y = error)) +
-                       #geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
-                       geom_smooth(aes(colour = distance_group), method = "lm", se =  TRUE, level = 0.95) +
-                       theme_minimal() +
-                       scale_color_manual(values = color_palette)+
-                       ylim(0, 30) +
-                       labs(title = "Error by Distance", x = "Distance from Particle (px)", y = "Error (A.U.)")
-
- # Save plots
- if(savingtRACE){
- savePlots(obj_to_save = list(period_dotplot_trace = period_dotplot_trace, amplitude_dotplot_trace = amplitude_dotplot_trace, error_dotplot_trace = error_dotplot_trace),
-           filename = filename, basepath = newdir, extension = "svg", p.width = 1800, p.height = 1000)}
-
   }
 
- #operations to perform at the end of the cycle
+ # OPS AFTER CYCLE IS FINISHED ####
 
  #save circ_summary table
  write.csv(circ_summary, file = file.path(wd, "circular_stats.csv"), row.names = TRUE)
 
 
-
+ # GROUP PLOTS IN FOLDER
  pull_plots(wd, plot.name = "phases_summary.svg", dir.name = "phases_summary", file.names = filenames)
  pull_plots(wd, plot.name = "groups_cells_plot.svg", dir.name = "group_maps", file.names = filenames)
  pull_plots(wd, plot.name = "spatial_amplitude.svg", dir.name = "spatial_amp", file.names = filenames)
@@ -1218,6 +1210,9 @@ groups <- unique(merged_table$distance_group)
  pull_plots(wd, plot.name = "spatial_error.svg", dir.name = "spatial_err", file.names = filenames)
  pull_plots(wd, plot.name = "spatial_phases_circ.svg", dir.name = "spatial_phase", file.names = filenames)
 
+ 
+ # REPORT -----
+ 
  # Install and load required packages for report generation
  # Install and load required packages for report generation
  if (!require(rmarkdown)) install.packages("rmarkdown")
@@ -1333,7 +1328,7 @@ groups <- unique(merged_table$distance_group)
  #' classify cells based on their location (i.e. dorsal or ventral)
 
 
- #### OLD CODE #####
+ # OLD CODE #####
  #' Calculate cells that colocalize with particles
  for (frame_index in seq_along(tau_polygons_frames)) {
    # Convert ROIs for the current frame into a single spatial object
@@ -1460,4 +1455,18 @@ groups <- unique(merged_table$distance_group)
   return(plot)
  }
 
-
+ # close_cells_plot = highlight_cells(list(close_cells_matrix), frame = 2, colors = c("#B23A48"))
+ # far_cells_plot = highlight_cells(list(far_cells_matrix), frame = 40, colors = c("#2F9C95"))
+ # between_cells_plot = highlight_cells(list(between_cells_matrix), frame = 40, colors = c("#B6DC76"))
+ 
+ #' Extract IDs and TS of cells close to particles
+ # close_cells_IDs = which(close_cells_matrix[, 2] == TRUE) %>% names()
+ # close_cells_ch2_TS = ch2_cells[rownames = close_cells_IDs ,]
+ 
+ #' plot timeseries of cells in specific regions from particles
+ # plot_TS <- t(close_cells_ch2_TS) %>% as.data.frame() %>% cbind("Time" = seq(from = 0, length.out = length(plot_TS[, 1]), by = 0.5), .)
+ # plot_TS_long <- tidyr::pivot_longer(plot_TS, cols = c(2:length(plot_TS[1,])), values_to = "intensity", names_to = "ID") %>% order("ID")
+ #
+ # plot_TS <- ggplot2::ggplot(data = plot_TS_long, ggplot2::aes(x = Time, y = intensity, color = ID))+
+ # geom_line() #TODO add color or grouping based on distance from particles
+ 
