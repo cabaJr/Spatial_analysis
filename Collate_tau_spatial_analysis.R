@@ -268,7 +268,7 @@ merged_list <- setNames(lapply(names(merged_list), function(name) {
   return(df)
 }), names(distance_list))
 
-plot_folder = file.path(wd, "spatial_analysis")
+plot_folder = file.path(wd, "spatial_analysis2")
 
 if(!dir.exists(plot_folder)){
   dir.create(plot_folder)
@@ -449,6 +449,14 @@ period_trace_w <- ggplot()+
   geom_smooth(data = merged_table_w[merged_table_w$treatment == "MUT", ], aes(x = distance, y = period, colour = distance_group, group = distance_group, weight = weight), method = "loess", se =  TRUE, level = 0.95) +
   scale_color_manual(values = color_palette)+
   ylim(22.5, 24.5) +
+  theme_minimal() +
+  labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
+
+amplitude_dotplot_trace_allcells <- ggplot()+#merged_table, aes(x = distance, y = period)) +
+  # geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
+  geom_smooth(data = merged_table[merged_table$treatment == "FRED", ], aes(x = distance, y = amplitude, colour = distance_group, group = distance_group), method = "loess", se =  TRUE, level = 0.95) +
+  geom_smooth(data = merged_table[merged_table$treatment == "MUT", ], aes(x = distance, y = amplitude, colour = distance_group, group = distance_group), method = "loess", se =  TRUE, level = 0.95) +
+  scale_color_manual(values = color_palette)+
   theme_minimal() +
   labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
 
