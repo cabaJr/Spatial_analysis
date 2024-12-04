@@ -219,6 +219,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
   sd_value <- sd(merged_data[[variable]], na.rm = TRUE)
   lower_bound <- mean_value - (sdFactor * sd_value)
   upper_bound <- mean_value + (sdFactor * sd_value)
+  lower_bound <- ifelse(lower_bound < 0, 0, lower_bound)
   
   colorschemes <- list("blue" = c("#DEEBF5", "#A0C9DF", "#559ECA", "#1663A5", "#003066"),
                        "green" = c("#F1F9EE", "#C0E5BB", "#6EBD71", "#07421F", "#07421F"),
@@ -1032,7 +1033,7 @@ for (i in seq(from = 1, to = length(files))){
   if(saving){
     savePlots(obj_to_save = list(spatial_period = spatial_period, spatial_amplitude = spatial_amplitude,
                                  spatial_error = spatial_error, spatial_phases = spatial_phases,
-                                 spatial_phases_circ = spatial_phases_circ), filename = filename, basepath = newdir, extension = "svg", p.width = 800, p.height = 1420)}
+                                 spatial_phases_circ = spatial_phases_circ), filename = filename, basepath = newdir, extension = "svg", p.width = 300, p.height = 347)}
   
   # PARTICLE-CELLS DISTANCES AND PLOT ####
   
@@ -1095,7 +1096,7 @@ for (i in seq(from = 1, to = length(files))){
   
   #' save plot
   if(saving){
-    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 750, p.height = 1250)}
+    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 300, p.height = 347)}
   
   # MERGE PERIOD AND PARTICLE ANALYSIS ####
   
