@@ -1244,7 +1244,7 @@ for (i in seq(from = 1, to = length(files))){
     scale_x_discrete(breaks = c(seq(12, 172, by = 24)))
   
   if(saving){
-    savePlots(obj_to_save = list(distance_groups_trace_plot = all_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
+    savePlots(obj_to_save = list(distance_groups_trace_plot = all_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 2300, p.height = 1390)}
 
 
   # MERGE PERIOD AND PARTICLE ANALYSIS ####
