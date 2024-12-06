@@ -10,7 +10,10 @@
 #' RImageJROI
 
 # install and load required packages ####
-pkg_req <- c("sf", "RImageJROI", "ggplot2", "dplyr", "pracma", "minpack.lm", "magrittr", "stringr", "circular", "svglite", "astsa", "pdftools", "scico", "ggpubr", "rstatix", "matrixStats", "gridGraphics")
+pkg_req <- c("sf", "RImageJROI", "ggplot2", "dplyr", "pracma", "minpack.lm",
+             "magrittr", "stringr", "circular", "svglite", "astsa", "pdftools",
+             "scico", "ggpubr", "rstatix", "matrixStats", "gridGraphics",
+             "matrixStats")
 
 # Install and load packages if not already installed
 for (package in pkg_req) {
@@ -21,6 +24,7 @@ for (package in pkg_req) {
 }
 
 # FUNCTIONS ####
+
 #' function to import a single ROI
 importROI = function(path){
   roi_path = stringr::str_replace_all(path, "\\\\", "//")
@@ -294,9 +298,17 @@ back_to_forw <- function(x){
 }
 
 # prepare data into long table format
-prep_table = function(data){
+prep_table = function(data, rm.start = 0){
+  
   # re-transpose table
   data = t(data)
+  
+  # remove initial data
+  if(rm.start != 0){
+    print("removing data")
+    data = data[-c(seq(1, rm.start)), ]
+  }
+  
   # add time column
   t = seq(0, length.out = length(data[, 1]), by = 0.5)
   data = cbind(t, data)
@@ -314,36 +326,49 @@ prep_table = function(data){
 
 # function to remove outliers, smooth and detrend
 preprocess_data = function(data, grade){
+  
   # load table
   data_to_clear <- data
+  
   # create table to store smoothened data
   clear_data <- data[,1]
+  
   # get time values
   x_vals <- data[,1]
   print("Preprocessing data...")
   pb <- txtProgressBar(min = 2, max = length(colnames(data_to_clear)), style = 3)
+  
   # for cycle to go through each column and smooth the data
   for (i in seq(2, length(colnames(data_to_clear)))){
     timeserie <- data_to_clear[,i]
+    
     # create vector for cleaned data
     cleaned_ts = timeserie
+    
     # perform first loess approximation
     smoothed_series <- loess(timeserie ~ seq_along(timeserie), span = 0.08)
     smoothed_values <- predict(smoothed_series, newdata = data.frame(x = x_vals))
+    
     # calculate outliers based on distance from loess curve and sd
     stdev_ts <- sd(smoothed_values)
     outliers <- which(abs(smoothed_values - timeserie) > stdev_ts*0.6)
+    
     # delete outliers from data
     cleaned_ts[outliers] <- NA
+    
     # perform second loess approximation on clean data
     smoothed_clean_series <- loess(cleaned_ts ~ seq_along(cleaned_ts), span = 0.08)
     smoothed_clean_values <- predict(smoothed_clean_series, newdata = data.frame(x = x_vals))
+    
     # interpolate missing values before detrending
     smoothed_clean_values <- imputeTS::na_interpolation(smoothed_clean_values, option = "spline")
+    
     # add detrending step
     smoothed_clean_detr_values <- astsa::detrend(smoothed_clean_values, grade)
+    
     # add smoothened data to table
     clear_data <- cbind(clear_data, smoothed_clean_detr_values)
+    
     # update progressbar
     setTxtProgressBar(pb, i)
   }
@@ -422,7 +447,8 @@ FFT_NLLS_analyse = function(data, minPer = 15, maxPer = 32){
   }
   
   # Convert phase to time units (hours)
-  fitted_phase <- circular::as.circular(fitted_phase, type = "angles", units = "radians", rotation = "clock")
+  fitted_phase <- circular::as.circular(fitted_phase, type = "angles", units = "radians", 
+                                        rotation = "clock", template = "none", modulo = "asis", zero = 0)
   phase_circadian <- circular::conversion.circular(fitted_phase, units = "hours")
   phase_absolute <- phase_circadian*(fitted_period/24)
   
@@ -596,14 +622,53 @@ align_phase = function(data, CT = 6, ...){
   return(phases_aligned)
 }
 
+# function to align traces to the mean phase of the group
+#' TODO add possibility to align to a specified phase. Provide phase in hours,
+#' then convert in radians and use as mean_phase
+phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0){
+
+  phases = circular::minusPiPlusPi(circular(period_tbl$phase_rad, units = "rad"))
+  mean_phase = circular::mean.circular(phases, na.rm = TRUE)
+  ph_diff = mean_phase - phases
+  adjust = circular::minusPiPlusPi(circular(ph_diff, units = "rad"))
+  adjust_frames = round(circular::conversion.circular(adjust, units = "hours")*2, 0)
+  # initialize new table to store vecs
+  traces_aligned <- replace(traces_table, all(), NA)
+  for (i in 1:dim(traces_table)[1]){
+    # get vector
+    trace = traces_table[i,]
+    adjust_fct = adjust_frames[i]
+    if(is.na(adjust_fct)){
+      clean_trace = rep(NA, dim(traces_table)[2])
+    } else if(adjust_fct == 0){
+      clean_trace = trace
+    } else if(adjust_fct < 0){
+      clean_trace = c(rep_len(NA, abs(adjust_fct)), trace[1:(length(trace)-abs(adjust_fct))])
+    } else if(adjust_fct > 0){
+      clean_trace = c(trace[(abs(adjust_fct)+1):length(trace)], rep_len(NA, abs(adjust_fct)))
+    }
+    traces_aligned[i,] = clean_trace
+    # browser()
+    # plot(x = 0:(dim(traces_table)[2]-1), y = trace, col = "red", type = "l")
+    # lines(x = 0:(dim(traces_table)[2]-1), y =clean_trace, col = "blue", type = "l")
+  }
+
+  # trim start and end of table
+  traces_aligned_trim = traces_aligned[ , (max(adjust_frames, na.rm = TRUE)+1):(dim(traces_aligned)[2]+min(adjust_frames, na.rm = TRUE))]
+  
+  return(traces_aligned_trim)
+}
+
 # foo to analyse TS and make circular plot
-computePeriod = function(df, excludeNC = FALSE, top = 30, bottom = 18, ...){
+computePeriod = function(df, excludeNC = FALSE, top = 30, bottom = 18, save.trace = FALSE, rm.start = 0, ...){
+
   #prepare table
-  data_df <- prep_table(df)
+  data_df <- prep_table(df, rm.start)
   
   # analyse period and store result in list
   unique_ids = unique(data_df$ID)
   results_list <- list()
+  traces_list <- list()
   plot_list <- list()
   print("Computing period...")
   pb <- txtProgressBar(min = 2, max = length(unique_ids), style = 3)
@@ -629,10 +694,14 @@ computePeriod = function(df, excludeNC = FALSE, top = 30, bottom = 18, ...){
     # Append the result to the results list
     results_list[[ID]] <- result
     setTxtProgressBar(pb, i)
+    
+    # add the detrended trace to a list for export
+    traces_list[[ID]] <- detrended_data
   }
   close(pb)
   print("Completed")
   period_table = do.call(rbind, lapply(results_list, as.data.frame))
+  traces_table = do.call(cbind, lapply(traces_list, as.data.frame)) %>% t() %>% `rownames<-`(names(traces_list))
   # round all digits in the table
   period_table <- period_table %>%
     dplyr::mutate(dplyr::across(.cols = -all_of("ID"), ~ round(., 2)))
@@ -649,7 +718,11 @@ computePeriod = function(df, excludeNC = FALSE, top = 30, bottom = 18, ...){
   }
   non_na_count <- sum(!is.na(period_table$phase_h))
   
-  return(period_table)
+  # list to return results and traces of period analysis
+  return_list = list(traces = traces_table,
+                     period_table = period_table) 
+  
+  return(return_list)
 }
 
 #' summarize period analysis
@@ -1008,10 +1081,13 @@ for (i in seq(from = 1, to = length(files))){
   
   # analyze period
   period_tbl_path = file.path(foldername, paste(filename, "_period_tbl.rds", sep = ""))
-  if(file.exists(period_tbl_path)){
+  if(FALSE){#file.exists(period_tbl_path)){
     period_tbl <- readRDS(period_tbl_path)
   }else{
-    period_tbl <- computePeriod(ch2_cells, filename, excludeNC = TRUE, top = 27, bottom = 16)
+    results <- computePeriod(ch2_cells, filename, excludeNC = TRUE, top = 27, bottom = 16, rm.start = 12)
+    period_tbl <- results$period_table
+    detrended_traces <- results$traces
+    
     # save period table as RDS
     saveRDS(period_tbl, file = period_tbl_path)
   }
@@ -1096,8 +1172,11 @@ for (i in seq(from = 1, to = length(files))){
   limit2 = 12
   
   close_cells_matrix = distance_matrix_median <= limit1
+  close_cells_IDs = names(close_cells_matrix[close_cells_matrix == TRUE])
   far_cells_matrix = distance_matrix_median > limit2
+  far_cells_IDs = names(far_cells_matrix[far_cells_matrix == TRUE])
   between_cells_matrix = distance_matrix_median >limit1 & distance_matrix_median <=limit2
+  between_cells_IDs = names(between_cells_matrix[between_cells_matrix == TRUE])
   
   color_palette = c("#B23A48", "#2F9C95", "#B6DC76")
   
@@ -1107,8 +1186,64 @@ for (i in seq(from = 1, to = length(files))){
   
   #' save plot
   if(saving){
-    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
+    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 2200, p.height = 1390)}
   
+  # LOOK AT TRACES IN DIFFERENT GROUPS #### 
+  #' TODO comment code and create function out of it
+  
+  #' extract the cleaned trace from the period calculation algorithm
+  detrended_traces = results$traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(results$traces)[2]))
+  #' phase align all the traces
+  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl) %>% t()
+  aligned_traces_norm <- as.data.frame(aligned_traces) %>%
+    mutate(across(where(is.numeric), ~ (. - min(.)) / (max(.) - min(.))))  %>% as.matrix(.)
+  t = as.numeric(rownames(aligned_traces_norm))
+  aligned_traces_t = cbind(t, aligned_traces_norm) %>% as.data.frame()
+  aligned_traces_long = tidyr::pivot_longer(aligned_traces_t,
+                                            cols = colnames(aligned_traces_t)[-1],
+                                            names_to = "ID",
+                                            values_to = "intensity")
+  aligned_traces_long$ID = as.numeric(aligned_traces_long$ID)
+  
+  aligned_traces_long$group = NA
+  # assign groups
+  aligned_traces_long$group[which(aligned_traces_long$ID %in% close_cells_IDs)] = "close"
+  aligned_traces_long$group[which(aligned_traces_long$ID %in% between_cells_IDs)] = "mid"
+  aligned_traces_long$group[which(aligned_traces_long$ID %in% far_cells_IDs)] = "far"
+  
+  #' summarize groups
+  traces_summary = aligned_traces_long %>%
+    dplyr::group_by(group, t) %>% 
+    dplyr::summarise(mean = mean(intensity, na.rm = TRUE),
+                     se = sd(intensity, na.rm = TRUE) / sqrt(n()),
+                     .groups = "drop"
+    )
+    
+  
+  
+  #' get traces of groups
+  close_traces = aligned_traces[, which(colnames(aligned_traces) %in% close_cells_IDs)]
+  between_traces = aligned_traces[, which(colnames(aligned_traces) %in% between_cells_IDs)]
+  far_traces = aligned_traces[, which(colnames(aligned_traces) %in% far_cells_IDs)]
+  
+  #' remove cells with NA
+  close_traces_clean = close_traces[, -c(unique(which(is.na(close_traces), arr.ind=TRUE)[,2]))]
+  write.csv(close_traces_clean, "clean.csv")
+  
+  # make plots
+  all_plot = ggplot2::ggplot(traces_summary, aes(group = group))+
+    geom_ribbon(aes(x = as.numeric(t), ymin = mean-se, ymax = mean+se, alpha = 0.6, colour = group, fill = group))+
+    geom_line(aes(x = t, y = mean, colour = group))+
+    scale_x_discrete(breaks = c(seq(12, 172, by = 24)))
+  
+  close_plot_all = ggplot2::ggplot(data = aligned_traces_long)+
+    geom_line(aes(x = t, y = intensity, group = ID))+
+    scale_x_discrete(breaks = c(seq(12, 172, by = 24)))
+  
+  if(saving){
+    savePlots(obj_to_save = list(distance_groups_trace_plot = all_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
+
+
   # MERGE PERIOD AND PARTICLE ANALYSIS ####
   
   # analysis to visualize circadian parameters in relation to the distance from plaques
@@ -1223,8 +1358,14 @@ pull_plots(wd, plot.name = "spatial_error.svg", dir.name = "spatial_err", file.n
 pull_plots(wd, plot.name = "spatial_fred.svg", dir.name = "spatial_fred", file.names = filenames)
 pull_plots(wd, plot.name = "spatial_green.svg", dir.name = "spatial_green", file.names = filenames)
 pull_plots(wd, plot.name = "spatial_phases_circ.svg", dir.name = "spatial_phase", file.names = filenames)
+pull_plots(wd, plot.name = "distance_groups_trace_plot.svg", dir.name = "traces", file.names = filenames)
+
+#' TODO create a remove_file function
 
 
+
+
+#' 
 # REPORT -----
 
 # Install and load required packages for report generation
