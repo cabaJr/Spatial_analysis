@@ -1081,15 +1081,18 @@ for (i in seq(from = 1, to = length(files))){
   
   # analyze period
   period_tbl_path = file.path(foldername, paste(filename, "_period_tbl.rds", sep = ""))
+  detr_traces_path = file.path(foldername, paste(filename, "_detr_traces.rds", sep = ""))
   if(FALSE){#file.exists(period_tbl_path)){
     period_tbl <- readRDS(period_tbl_path)
+    detrended_traces <- readRDS(detr_traces_path)
   }else{
     results <- computePeriod(ch2_cells, filename, excludeNC = TRUE, top = 27, bottom = 16, rm.start = 12)
     period_tbl <- results$period_table
     detrended_traces <- results$traces
     
-    # save period table as RDS
+    # save period table and traces as RDS
     saveRDS(period_tbl, file = period_tbl_path)
+    saveRDS(detrended_traces, file = detr_traces_path)
   }
   # get summary of data
   period_summary_list <- summarizePeriod(period_tbl)
