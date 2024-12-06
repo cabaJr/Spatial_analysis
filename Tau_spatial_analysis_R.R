@@ -1235,13 +1235,25 @@ for (i in seq(from = 1, to = length(files))){
   
   # make plots
   all_plot = ggplot2::ggplot(traces_summary, aes(group = group))+
-    geom_ribbon(aes(x = as.numeric(t), ymin = mean-se, ymax = mean+se, alpha = 0.6, colour = group, fill = group))+
+    geom_ribbon(aes(x = t, ymin = mean-se, ymax = mean+se, alpha = 0.5, colour = group, fill = group))+
     geom_line(aes(x = t, y = mean, colour = group))+
-    scale_x_discrete(breaks = c(seq(12, 172, by = 24)))
+    ggplot2::scale_alpha_identity()+
+    scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
+    theme_minimal()+
+    theme(axis.line.y = element_line(linewidth = 1),
+          axis.line.x = element_line(linewidth = 1),
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
+          plot.subtitle = element_text(size = 10, hjust = 0),
+          axis.text.x = element_text(size = 15),
+          axis.text.y = element_text(size = 15),
+          axis.title.x  = element_text(size = 20),
+          axis.title.y  = element_text(size = 20))
   
   close_plot_all = ggplot2::ggplot(data = aligned_traces_long)+
     geom_line(aes(x = t, y = intensity, group = ID))+
-    scale_x_discrete(breaks = c(seq(12, 172, by = 24)))
+    scale_x_discrete(t, breaks = c(seq(12, 172, by = 24)))
   
   if(saving){
     savePlots(obj_to_save = list(distance_groups_trace_plot = all_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 2300, p.height = 1390)}
