@@ -18,7 +18,7 @@ for (i = 0; i < lengthOf(fileList); i++) {
     fileName = fileList[i];
 
     // Only process .tif files
-    if (endsWith(fileName, ".tif")) {
+    if (endsWith(fileName, ".tif") | endsWith(fileName, ".tiff")) {
 // open image, get ID, get title, set img properties, and create result folder
 open(inputDir + fileName);
 originalImg = getImageID();
@@ -38,7 +38,7 @@ prefixscn = "SCN";
 
 // get whole sliceROI from function
 print("Defining slice area");
-wholeSliceROI = defineSlice(channel_gcamp, 500, title, resultDir, originalImg);
+wholeSliceROI = defineSlice(channel_gcamp, 250, title, resultDir, originalImg);
 print("Area defined succesfully!");
 
 // threshold image
@@ -47,7 +47,7 @@ gammasave = true;
 closeImg = false;
 threshold = 300;
 filterSize = 6;
-print("Perparing stack to be thresholded");
+print("Preparing stack to be thresholded");
 //threshold_path = threshold_prep(originalImg, channel_fred, area, wholeSliceROI, resultDir, gammasave, closeImg);
 threshold_path = laplaceThresholdStack(originalImg, channel_fred, area, wholeSliceROI, resultDir, closeImg, threshold); 
 print("Stack thresholding successful!");
@@ -61,15 +61,18 @@ print("Done!");
 SCN_roi_path = resultDir + File.separator + title+"_SCN_nuclei.roi";
 if(File.exists(SCN_roi_path)){
 	SCN_roi = SCN_roi_path;
+	selectImage(originalImg);
+	Stack.setDisplayMode("color");
+	Stack.setChannel(channel_gcamp);
 	} else {
 print("Getting SCN area from user");
 SCN_roi = createROI(originalImg, channel_gcamp, title, resultDir);
 	}
 // get Z axis profile of both whole slice and SCN nucleus
 print("Extract Z-axis profile from whole slice");
-extract_profile(originalImg, title, resultDir, wholeSliceROI, prefixwhole);
+extract_profile(originalImg, title, resultDir, wholeSliceROI, prefixwhole, fileName);
 print("Extract Z-axis profile from SCN nuclei");
-extract_profile(originalImg, title, resultDir, SCN_roi, prefixscn);
+extract_profile(originalImg, title, resultDir, SCN_roi, prefixscn, fileName);
 
 // perform aggregated particle analysis on SCN nucleus
 closeImg = true;
@@ -109,6 +112,16 @@ function defineSlice(channel, lowthresh, title, resultDir, originalID){ // funct
 // identify area of slice 
 	//select image
 	selectImage(originalID);
+	Stack.setActiveChannels(channel);
+	Stack.setSlice(20);
+	run("Measure");
+	thresh1 = getResult("Mean", 0);
+	Stack.setSlice(44);
+	run("Measure");
+	thresh2 = getResult("Mean", 1);
+	close("Results");
+	lowthresh = (thresh1+thresh2)/2;
+	selectImage(originalID);
 	// duplicate red channel
 	run("Duplicate...", "title=masking duplicate channels=" + channel);
 	
@@ -137,8 +150,8 @@ function defineSlice(channel, lowthresh, title, resultDir, originalID){ // funct
 	
 	// get all areas values
 	areas = Table.getColumn("Total Area");
-	max_area = Array.findMaxima(areas, 1);
-	slice = max_area[0] + 1;
+	max_area = Array.findMaxima(areas, 0);
+	slice = max_area[0]+1;
 	print("We will use Roi on slice:" +slice+ ". It has an area of "+ areas[max_area[0]]+ "px");
 	
 	//keep the ROI corresponding to max area
@@ -447,7 +460,7 @@ function createROI(originalImg, channel, title, resultDir){ // function to creat
 } //end of createROI function
 
 // write foo to extract and save Zaxis profiles
-function extract_profile(originalImg, title, resultDir, ROI, prefix){
+function extract_profile(originalImg, title, resultDir, ROI, prefix, filename){
 	// Args list:
 		// originalImg	ID of original image
 		// title		title of original image
@@ -463,7 +476,7 @@ function extract_profile(originalImg, title, resultDir, ROI, prefix){
 	roiManager("open", ROI);
 	// get multichannel ZT axis profile
 	run("Multichannel ZT-axis Profile", "statschoice=Mean calibratedx=true zoption=[Active plane] activatechannelwidget=true allowroutine=true");
-	plotWin = "Z/T-axis Plot of "+title+".tif";
+	plotWin = "Z/T-axis Plot of "+filename;
 	selectWindow(plotWin);
 	// create table with values
 	Plot.showValuesWithLabels();
