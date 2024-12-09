@@ -5,13 +5,17 @@ kernelSize = 5;  // Size of each kernel
 pixelSize = 1;
 inputDir = getDirectory("Select the input folder containing the images");
 fileList = getFileList(inputDir);
+
 // Loop through the file list to collect unique base filenames
 for (i = 0; i < lengthOf(fileList); i++) {
     fileName = fileList[i];
-
+msg1 = "extracting values from: "+ fileName;
+print(msg1);
     // Only process .tif files
-    if (endsWith(fileName, ".tif")) {
-    	open(inputDir + fileName);
+    if (endsWith(fileName, ".tif") | endsWith(fileName, ".tiff")) {
+    	setBatchMode(true);
+    	filepath = inputDir + File.separator + fileName;
+    	open(filepath);
 title = File.nameWithoutExtension();
 
 setImgProperties(pixelSize);
@@ -37,6 +41,7 @@ getROIsMean(output, 2, title);
 getROIsMean(output, 1, title);
 
 close(fileName);
+setBatchMode(false);
 msg = "Values extracted from: "+ title;
 print(msg);
     } //end if statement
