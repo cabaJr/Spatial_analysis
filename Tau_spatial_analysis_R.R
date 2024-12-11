@@ -625,12 +625,12 @@ align_phase = function(data, CT = 6, ...){
 # function to align traces to the mean phase of the group
 #' TODO add possibility to align to a specified phase. Provide phase in hours,
 #' then convert in radians and use as mean_phase
-phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0, align_to = NA){
-
+phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0, align_to = NA, debug = FALSE){
+#' TODO check align phase value
   phases = circular::minusPiPlusPi(circular(period_tbl$phase_rad, units = "rad"))
   if(is.na(align_to)){
   align_phase = circular::mean.circular(phases, na.rm = TRUE)
-  } else {align_phase = (align_to/12)*pi}
+  } else {align_phase = circular::as.circular((align_to/12)*pi)}
   ph_diff = align_phase - phases
   adjust = circular::minusPiPlusPi(circular(ph_diff, units = "rad"))
   adjust_frames = round(circular::conversion.circular(adjust, units = "hours")*2, 0)
@@ -650,9 +650,11 @@ phase_align_trace = function(traces_table, period_table, remove_start = 0, remov
       clean_trace = c(trace[(abs(adjust_fct)+1):length(trace)], rep_len(NA, abs(adjust_fct)))
     }
     traces_aligned[i,] = clean_trace
-    # browser()
-    # plot(x = 0:(dim(traces_table)[2]-1), y = trace, col = "red", type = "l")
-    # lines(x = 0:(dim(traces_table)[2]-1), y =clean_trace, col = "blue", type = "l")
+    if(debug){
+    browser()
+    plot(x = 0:(dim(traces_table)[2]-1), y = trace, col = "red", type = "l")
+    lines(x = 0:(dim(traces_table)[2]-1), y =clean_trace, col = "blue", type = "l")
+    }
   }
 
   # trim start and end of table
@@ -1084,7 +1086,7 @@ for (i in seq(from = 1, to = length(files))){
   # analyze period
   period_tbl_path = file.path(foldername, paste(filename, "_period_tbl.rds", sep = ""))
   detr_traces_path = file.path(foldername, paste(filename, "_detr_traces.rds", sep = ""))
-  if(FALSE){#file.exists(period_tbl_path)){
+  if(file.exists(period_tbl_path)){
     period_tbl <- readRDS(period_tbl_path)
     detrended_traces <- readRDS(detr_traces_path)
   }else{
@@ -1199,7 +1201,7 @@ for (i in seq(from = 1, to = length(files))){
   #' extract the cleaned trace from the period calculation algorithm
   detrended_traces = results$traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(results$traces)[2]))
   #' phase align all the traces
-  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = 6) %>% t()
+  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = NA, debug = TRUE) %>% t()
   aligned_traces_norm <- as.data.frame(aligned_traces) %>%
     mutate(across(where(is.numeric), ~ (. - min(.)) / (max(.) - min(.))))  %>% as.matrix(.)
   t = as.numeric(rownames(aligned_traces_norm))
@@ -1225,8 +1227,8 @@ for (i in seq(from = 1, to = length(files))){
     )
     
   #' save long table containing traces
-  aligned_trc_path = file.path(foldername, paste0(filename, "_aligned_traces.rds"))
-  saveRDS(aligned_traces_long, file = aligned_trc_path)
+  aligned_trx_path = file.path(foldername, paste0(filename, "_aligned_traces.rds"))
+  saveRDS(aligned_traces_long, file = aligned_trx_path)
   
   #' get traces of groups
   close_traces = aligned_traces[, which(colnames(aligned_traces) %in% close_cells_IDs)]
