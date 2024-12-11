@@ -16,7 +16,7 @@ for (package in pkg_req) {
 }
 
 
-##### FUNCTIONS #####
+ # FUNCTIONS #####
 nested_anova_plot <- function(data, metric, distance_var, well = well, treatment_var, ylabel = "", xlabel = "", comparison = TRUE, test = "bonferroni", norm_test = TRUE, plot_colors, nudge = 0.5, step = 0.2, ...) {
   
   # Compute normality test if needed
@@ -159,11 +159,11 @@ savePlots = function(obj_to_save, savefold, extension, p.width = 1560, p.height 
     ggplot2::ggsave(plot_path, plot = obj_to_save[[i]], width = p.width, height = p.height, units = "px")
   }
 }
-##### EXECUTION ######
+ # EXECUTION ######
 
-#### IMPORTING #####
+ # IMPORTING #####
 #' select home dir where to pull names and data from
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Science\Lab\Main_proj\4_extra\Tau_an_dev\wk5_hemislices\Left\test)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Proj_Tau\Tau_an_dev\wk5_hemislices\Left\test)"
 
 files = list.files(path = wd, pattern = ".tif*$")
 filenames = stringr::str_remove(files, pattern = ".tif*")
@@ -171,11 +171,13 @@ foldernames = file.path(wd, paste(filenames, "_results", sep = ""))
 
 dataset_list <- list(grid.vals = list(),
                      dist.mtx = list(),
-                     period.tbl = list())
+                     period.tbl = list(),
+                     align.trx = list())
 
 missing_matrices <- vector()
 missing_periods <- vector()
 missing_merg_tbls <- vector()
+missing_traces <- vector()
 
 # import all period tbls, distance matrices and merged tables
 for (i in seq_len(length(files))){
@@ -206,16 +208,28 @@ for (i in seq_len(length(files))){
   merg_tbl_path = file.path(foldername, paste(filename, "_merged_tbl.rds", sep = ""))
   if(file.exists(merg_tbl_path)){
     merged_table <- readRDS(merg_tbl_path)
-    dataset_list$merg.tbl[[filename]] <- distance_matrix
+    dataset_list$merg.tbl[[filename]] <- merged_table
   }else{
     print(paste(filename, " merged table file missing."))
     missing_merg_tbls <- c(missing_merg_tbls, filename)
   }
   
+  #' import aligned traces
+  align_trx_path = file.path(foldername, paste(filename, "_aligned_traces.rds", sep = ""))
+  if(file.exists(align_trx_path)){
+    aligned_trx <- readRDS(align_trx_path)
+    dataset_list$align.trx[[filename]] <- aligned_trx
+  }else{
+    print(paste(filename, " aligned traces file missing."))
+    missing_traces <- c(missing_traces, filename)
+  }
+  
+  
 }
 
 print("Datasets added!")
 
+ # DISTANCE GROUS ####
 #' compare groups across conditions for only two sample being compared
 
 limit1 = 3
@@ -228,7 +242,7 @@ between_cells_matrix = lapply(dataset_list$dist.mtx,  function(x){x>limit1 & x <
 
 color_palette = c("#B23A48", "#2F9C95", "#B6DC76")
 
-##### analysis to visualize circadian parameters in relation to the distance from plaques #####
+ # analysis to visualize circadian parameters in relation to the distance from plaques ####
 
 #' create list of distances and extract median value
 distance_list <- lapply(dataset_list$dist.mtx, function(matrix){
@@ -274,7 +288,7 @@ if(!dir.exists(plot_folder)){
   dir.create(plot_folder)
 }
 
-#' nested anova plot
+ # nested anova plots of period, amplitude, error ####
 {
   period_mean_plot_nest <- nested_anova_plot(
     data = merged_table,
@@ -315,7 +329,7 @@ if(!dir.exists(plot_folder)){
                                error_mean_plot_nest = error_mean_plot_nest), savefold = plot_folder, extension = "png", p.width = 1000)
 }
 
-#' analyse phases distances between groups
+ # analyse phases distances between groups ####
 circ_summary = read.csv(file = file.path(wd, "circular_stats.csv"), row)
 {
   close_mid = abs(circ_summary$close_meanPh - circ_summary$mid_meanPh) %>% sapply(., function(x){if(x>pi){x = 2*pi - x}else{x = x}})
@@ -379,7 +393,7 @@ circ_summary = read.csv(file = file.path(wd, "circular_stats.csv"), row)
   
 }
 
-#' plot vector length spread
+ # plot vector length spread ####
 {
   mu_table = data.frame(filename = circ_summary[,1],
                         close = circ_summary$close_vec_len,
@@ -408,7 +422,7 @@ circ_summary = read.csv(file = file.path(wd, "circular_stats.csv"), row)
   savePlots(obj_to_save = mu_plot,  savefold = plot_folder, extension = "png", p.width = 1000)
 }
 
-#' merge all tables together
+#' merge together all tables containing period and spatial data 
 merged_table = data.table::rbindlist(merged_list, idcol = "sample")
 
 meta_merged_table =
@@ -416,16 +430,21 @@ meta_merged_table =
   group_by(sample, distance_group, treatment) %>%
   summarise(n = length(ID))
 
+ # descriptive plots averaging all samples ####
 
-
-meta_plot = ggplot2::ggplot(data = meta_merged_table)+
-  geom_point(aes(x = distance_group, y = n, color = treatment), size = 3, position = position_dodge(0.3))+
+#' plot representing how many cells are present in every distance area per sample
+meta_plot = ggplot2::ggplot(data = meta_merged_table, aes(x = distance_group, y = n, color = treatment))+
+  geom_point(size = 3)+
+  geom_line(aes(group = sample))+
   labs(
     title = "Cell in every distance area",
     x = "Distance Group",
     y = "Cell number"
   ) +
   theme_minimal()
+
+#' plot showing period of all cells according to distance from particle
+#'  TODO add different linetype for two groups and add legend
 
 period_dotplot_trace_allcells <- ggplot()+#merged_table, aes(x = distance, y = period)) +
   # geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
@@ -441,6 +460,7 @@ sample_weights <- merged_table %>%
   summarise(cell_count = n(), .groups = "drop") %>%
   mutate(weight = 1 / cell_count)
 
+#' wrong assignments of weights
 merged_table_w = merged_table %>%
   left_join(sample_weights %>% select(sample, weight), by = "sample")
 
@@ -452,6 +472,10 @@ period_trace_w <- ggplot()+
   theme_minimal() +
   labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
 
+
+#' plot showing period of all cells according to distance from particle
+#'  TODO add different linetype for two groups and add legend
+
 amplitude_dotplot_trace_allcells <- ggplot()+#merged_table, aes(x = distance, y = period)) +
   # geom_point(aes(color = distance_group, alpha = 0.01, stroke = NA)) +
   geom_smooth(data = merged_table[merged_table$treatment == "FRED", ], aes(x = distance, y = amplitude, colour = distance_group, group = distance_group), method = "loess", se =  TRUE, level = 0.95) +
@@ -460,6 +484,10 @@ amplitude_dotplot_trace_allcells <- ggplot()+#merged_table, aes(x = distance, y 
   theme_minimal() +
   labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
 
+ # aligned traces all together ####
+
+ # import all tables 
+ # mixed model analysis of period ####
 #' try mixed model effect for analysis of periods
 library(lme4)
 library(lmerTest)
@@ -481,7 +509,7 @@ write.csv(merged_table, file = file.path(plot_folder, "merged_table.csv"))
 
 #' compare groups across conditions with many samples grouped and add nested anova
 
-#### OLD CODE ####
+ # OLD CODE ####
 
 #' also nested anova but different
 
