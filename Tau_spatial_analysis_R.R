@@ -625,11 +625,13 @@ align_phase = function(data, CT = 6, ...){
 # function to align traces to the mean phase of the group
 #' TODO add possibility to align to a specified phase. Provide phase in hours,
 #' then convert in radians and use as mean_phase
-phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0){
+phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0, align_to = NA){
 
   phases = circular::minusPiPlusPi(circular(period_tbl$phase_rad, units = "rad"))
-  mean_phase = circular::mean.circular(phases, na.rm = TRUE)
-  ph_diff = mean_phase - phases
+  if(is.na(align_to)){
+  align_phase = circular::mean.circular(phases, na.rm = TRUE)
+  } else {align_phase = (align_to/12)*pi}
+  ph_diff = align_phase - phases
   adjust = circular::minusPiPlusPi(circular(ph_diff, units = "rad"))
   adjust_frames = round(circular::conversion.circular(adjust, units = "hours")*2, 0)
   # initialize new table to store vecs
@@ -996,7 +998,7 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
 # FILEPATHS -----
 
 #' Base directory
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Science\Lab\Main_proj\4_extra\Tau_an_dev\wk5_hemislices\Left\test)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Proj_Tau\4.12\#4\Raw data\4.12.4_part5_assem\adj\hemis\Left)"
 wd = back_to_forw(wd)
 
 files = list.files(path = wd, pattern = ".tif*$")
@@ -1197,7 +1199,7 @@ for (i in seq(from = 1, to = length(files))){
   #' extract the cleaned trace from the period calculation algorithm
   detrended_traces = results$traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(results$traces)[2]))
   #' phase align all the traces
-  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl) %>% t()
+  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = 6) %>% t()
   aligned_traces_norm <- as.data.frame(aligned_traces) %>%
     mutate(across(where(is.numeric), ~ (. - min(.)) / (max(.) - min(.))))  %>% as.matrix(.)
   t = as.numeric(rownames(aligned_traces_norm))
@@ -1222,7 +1224,9 @@ for (i in seq(from = 1, to = length(files))){
                      .groups = "drop"
     )
     
-  
+  #' save long table containing traces
+  aligned_trc_path = file.path(foldername, paste0(filename, "_aligned_traces.rds"))
+  saveRDS(aligned_traces_long, file = aligned_trc_path)
   
   #' get traces of groups
   close_traces = aligned_traces[, which(colnames(aligned_traces) %in% close_cells_IDs)]
