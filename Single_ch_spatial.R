@@ -209,7 +209,7 @@ highlight_cells <- function(evaluation_matrices, filename, colors, all_cells = g
 }
 
 #' plot features of period on map
-highlight_cells_period = function(all_cells = grid_coord, period_table, variable, filename = "", colorcode = "blue", sdFactor = 1){
+highlight_cells_period = function(all_cells = grid_coord, period_table, variable, filename = "", colorcode = "blue", sdFactor = 1, shape=15, size = 2){
   
   plot_data <- grid_coord %>% `colnames<-`(c("ID", "X", "Y"))
   # Merge tables to include period data
@@ -239,7 +239,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
     )
   
   plot <- ggplot(merged_data, aes(x = X, y = Y, alpha = alphaval)) +
-    geom_point(aes(color = !!sym(variable))) +
+    geom_point(shape = shape, aes(colour = !!sym(variable), size = size)) +
     scale_color_gradientn(
       colors = colorscheme,
       values = scales::rescale(c(lower_bound, mean_value, upper_bound)),
@@ -247,6 +247,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
       oob = scales::squish  # Ensures outliers are squished into the limits
     ) +
     scale_alpha_identity()+
+    scale_size_identity()+
     theme_minimal() +
     labs(
       title = paste0(filename, " - Distribution of ", variable),
@@ -262,7 +263,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
 }
 
 #' plot features of period on map
-highlight_cells_period_circ = function(all_cells = grid_coord, period_table, variable, filename = ""){
+highlight_cells_period_circ = function(all_cells = grid_coord, period_table, variable, filename = "", shape=15, size = 2){
   
   plot_data <- grid_coord %>% `colnames<-`(c("ID", "X", "Y"))
   # Merge tables to include period data
@@ -279,9 +280,10 @@ highlight_cells_period_circ = function(all_cells = grid_coord, period_table, var
   
   # Create the plot
   plot <- ggplot(merged_data, aes(x = X, y = Y, alpha = alphaval)) +
-    geom_point(aes(color = !!sym(variable))) +
+    geom_point(shape = shape, aes(color = !!sym(variable)), size = size) +
     theme_minimal() +
     scale_alpha_identity()+
+    scale_size_identity()+
     scale_color_gradientn(colors = colorscheme) +
     labs(title = paste0(filename, " - Distribution of ", variable), x = "X Coordinate", y = "Y Coordinate") +
     coord_fixed() +
@@ -1105,12 +1107,13 @@ for (i in seq(from = 1, to = length(files))){
   spatial_phases <- highlight_cells_period_circ(period_table = period_tbl, variable = "phase_h", filename = filename)
   spatial_phases_circ <- highlight_cells_period_circ(period_table = period_tbl, variable = "phase_circ", filename = filename)
   
+  p.height = round(length(unique(grid_coord$Y))*22.64)+190
   # Save plots
   if(saving){
     savePlots(obj_to_save = list(spatial_period = spatial_period, spatial_amplitude = spatial_amplitude,
                                  spatial_error = spatial_error, spatial_phases = spatial_phases,
                                  spatial_phases_circ = spatial_phases_circ, spatial_fred = spatial_red,
-                                 spatial_green = spatial_green), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
+                                 spatial_green = spatial_green), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = p.height)}
   
   # PARTICLE-CELLS DISTANCES AND PLOT ####
   
