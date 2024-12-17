@@ -238,8 +238,6 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
       alphaval = ifelse(is.na(!!sym(variable)), 0, 1)
     )
   
-  # size = 1
-  
   plot <- ggplot(merged_data, aes(x = X, y = Y, alpha = alphaval)) +
     geom_point(shape = shape, aes(colour = !!sym(variable), size = size)) +
     scale_color_gradientn(
@@ -265,7 +263,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
 }
 
 #' plot features of period on map
-highlight_cells_period_circ = function(all_cells = grid_coord, period_table, variable, filename = ""){
+highlight_cells_period_circ = function(all_cells = grid_coord, period_table, variable, filename = "", shape=15, size = 2){
   
   plot_data <- grid_coord %>% `colnames<-`(c("ID", "X", "Y"))
   # Merge tables to include period data
@@ -282,9 +280,10 @@ highlight_cells_period_circ = function(all_cells = grid_coord, period_table, var
   
   # Create the plot
   plot <- ggplot(merged_data, aes(x = X, y = Y, alpha = alphaval)) +
-    geom_point(aes(color = !!sym(variable))) +
+    geom_point(shape = shape, aes(color = !!sym(variable)), size = size) +
     theme_minimal() +
     scale_alpha_identity()+
+    scale_size_identity()+
     scale_color_gradientn(colors = colorscheme) +
     labs(title = paste0(filename, " - Distribution of ", variable), x = "X Coordinate", y = "Y Coordinate") +
     coord_fixed() +
