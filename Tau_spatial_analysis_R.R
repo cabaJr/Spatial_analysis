@@ -209,12 +209,12 @@ highlight_cells <- function(evaluation_matrices, filename, colors, all_cells = g
 }
 
 #' plot features of period on map
-highlight_cells_period = function(all_cells = grid_coord, period_table, variable, filename = "", colorcode = "blue", sdFactor = 1){
+highlight_cells_period = function(all_cells = grid_coord, period_table, variable, filename = "", colorcode = "blue", sdFactor = 1, shape=15, size = 2){
   
   plot_data <- grid_coord %>% `colnames<-`(c("ID", "X", "Y"))
   # Merge tables to include period data
   merged_data <- left_join(plot_data, period_table, by = "ID")
-  
+
   # Choose the variable to visualize (e.g., period, amplitude, error)
   variable <- variable
   
@@ -238,8 +238,10 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
       alphaval = ifelse(is.na(!!sym(variable)), 0, 1)
     )
   
+  # size = 1
+  
   plot <- ggplot(merged_data, aes(x = X, y = Y, alpha = alphaval)) +
-    geom_point(aes(color = !!sym(variable))) +
+    geom_point(shape = shape, aes(colour = !!sym(variable), size = size)) +
     scale_color_gradientn(
       colors = colorscheme,
       values = scales::rescale(c(lower_bound, mean_value, upper_bound)),
@@ -247,6 +249,7 @@ highlight_cells_period = function(all_cells = grid_coord, period_table, variable
       oob = scales::squish  # Ensures outliers are squished into the limits
     ) +
     scale_alpha_identity()+
+    scale_size_identity()+
     theme_minimal() +
     labs(
       title = paste0(filename, " - Distribution of ", variable),
@@ -491,6 +494,7 @@ circular_plot = function(data, path, saving = TRUE, ...){
   # if there are no data to plot
   if(is.infinite(max(phases_rad, na.rm = TRUE))){
     phases = NA
+    real_MeanPh = NA
     plot.new()
     circular::plot.circular(phases, bins = 24, axes = FALSE)
     circular::axis.circular(circular(seq(0, 2*pi, pi/2)), zero=0, rotation = 'counter', labels=c("6", "00", "18", "12", "6"), tcl.text=0.12, cex = 1.5)
@@ -528,8 +532,6 @@ circular_plot = function(data, path, saving = TRUE, ...){
     dev.off()
   }
   
-  #capture plot and return it
-  # plot_capture <- recordPlot()
   list_returns <- list(#plot = plot,
     vec_len = vectorLength,
     variance = variance,
@@ -630,7 +632,8 @@ phase_align_trace = function(traces_table, period_table, remove_start = 0, remov
   phases = circular::minusPiPlusPi(circular(period_tbl$phase_rad, units = "rad"))
   if(is.na(align_to)){
   align_phase = circular::mean.circular(phases, na.rm = TRUE)
-  } else {align_phase = circular::as.circular((align_to/12)*pi)}
+  } else {align_phase = circular::as.circular((align_to/12)*pi, type = "angles", units = "radians", 
+                                              rotation = "clock", template = "none", modulo = "asis", zero = 0)}
   ph_diff = align_phase - phases
   adjust = circular::minusPiPlusPi(circular(ph_diff, units = "rad"))
   adjust_frames = round(circular::conversion.circular(adjust, units = "hours")*2, 0)
@@ -656,11 +659,22 @@ phase_align_trace = function(traces_table, period_table, remove_start = 0, remov
     lines(x = 0:(dim(traces_table)[2]-1), y =clean_trace, col = "blue", type = "l")
     }
   }
-
   # trim start and end of table
-  traces_aligned_trim = traces_aligned[ , (max(adjust_frames, na.rm = TRUE)+1):(dim(traces_aligned)[2]+min(adjust_frames, na.rm = TRUE))]
+  # evaluate if all have been shifted in one direction
+  #' min_shift = min(adjust_frames, na.rm = TRUE)
+  #' max_shift = max(adjust_frames, na.rm = TRUE)
+  #' shift = min_shift*max_shift
+  #' if(shift > 0){
+  #'   #' case when all the shift happens in the same direction (need to cut only from one of the two ends)
+  #'   #' TODO complete trimming in another function
+  #' } else if(shift < 0){
+  #'   #' case when shift happens in both direction (you can use the min-max rune simply)
+  #'   traces_aligned_trim = traces_aligned[ , (max(adjust_frames, na.rm = TRUE)+1):(dim(traces_aligned)[2]+min(adjust_frames, na.rm = TRUE))]
+  #' }
+
+  #traces_aligned_trim = traces_aligned[ , (max(adjust_frames, na.rm = TRUE)+1):(dim(traces_aligned)[2]+min(adjust_frames, na.rm = TRUE))]
   
-  return(traces_aligned_trim)
+  return(traces_aligned)
 }
 
 # foo to analyse TS and make circular plot
@@ -864,7 +878,7 @@ metric_boxplot = function(data, metric, grouping_var, ylabel = "", xlabel = "", 
   
   if(norm_test){ # test for normality
     normality = data %>%  group_by({{grouping_var}}) %>% rstatix::shapiro_test({{metric}})
-    print(normality)
+    #print(normality)
   }
   # compute anova
   formula = as.formula(paste(deparse(substitute(metric)), "~", deparse(substitute(grouping_var))))
@@ -903,7 +917,7 @@ metric_mean_plot = function(data, metric, grouping_var, ylabel = "", xlabel = ""
   
   if (norm_test) { # Test for normality
     normality = data %>% group_by({{grouping_var}}) %>% rstatix::shapiro_test({{metric}})
-    print(normality)
+    #print(normality)
   }
   
   # Compute ANOVA
@@ -1000,7 +1014,7 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
 # FILEPATHS -----
 
 #' Base directory
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Proj_Tau\4.12\#4\Raw data\4.12.4_part5_assem\adj\hemis\Left)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\4.12\#4\Raw data\4.12.4_part5_assem\adj\hemis\Left)"
 wd = back_to_forw(wd)
 
 files = list.files(path = wd, pattern = ".tif*$")
@@ -1108,26 +1122,27 @@ for (i in seq(from = 1, to = length(files))){
   ch1_cells_median = data.frame(ID = as.integer(rownames(ch1_cells)), 
                                    Intensity = matrixStats::rowMedians(ch1_cells))
   
-  spatial_red <- highlight_cells_period(period_table = ch1_cells_median, variable = "Intensity", filename = filename, colorcode = "red")
+  spatial_red <- highlight_cells_period(period_table = ch1_cells_median, variable = "Intensity", filename = filename, colorcode = "red", shape = 15, size = 2)
   # map of green values
   ch2_cells_median = data.frame(ID = as.integer(rownames(ch2_cells)), 
                                 SD = matrixStats::rowSds(ch2_cells))
   
-  spatial_green <- highlight_cells_period(period_table = ch2_cells_median, variable = "SD", filename = filename, colorcode = "green")
+  spatial_green <- highlight_cells_period(period_table = ch2_cells_median, variable = "SD", filename = filename, colorcode = "green", shape = 15, size = 2)
   
   # plot period distribution
-  spatial_period <- highlight_cells_period(period_table = period_tbl, variable = "period", filename = filename, colorcode = "purple")
-  spatial_amplitude <- highlight_cells_period(period_table = period_tbl, variable = "amplitude", filename = filename, colorcode = "green", sdFactor = 3.5)
-  spatial_error <- highlight_cells_period(period_table = period_tbl, variable = "error", filename = filename, colorcode = "blue", sdFactor = 1.5)
-  spatial_phases <- highlight_cells_period_circ(period_table = period_tbl, variable = "phase_h", filename = filename)
-  spatial_phases_circ <- highlight_cells_period_circ(period_table = period_tbl, variable = "phase_circ", filename = filename)
+  spatial_period <- highlight_cells_period(period_table = period_tbl, variable = "period", filename = filename, colorcode = "purple", shape = 15, size = 2)
+  spatial_amplitude <- highlight_cells_period(period_table = period_tbl, variable = "amplitude", filename = filename, colorcode = "green", sdFactor = 3.5, shape = 15, size = 2)
+  spatial_error <- highlight_cells_period(period_table = period_tbl, variable = "error", filename = filename, colorcode = "blue", sdFactor = 1.5, shape = 15, size = 2)
+  spatial_phases <- highlight_cells_period_circ(period_table = period_tbl, variable = "phase_h", filename = filename, shape = 15, size = 2)
+  spatial_phases_circ <- highlight_cells_period_circ(period_table = period_tbl, variable = "phase_circ", filename = filename, shape = 15, size = 2)
   
+  p.height = round(length(unique(grid_coord$Y))*22.64)+190
   # Save plots
   if(saving){
     savePlots(obj_to_save = list(spatial_period = spatial_period, spatial_amplitude = spatial_amplitude,
                                  spatial_error = spatial_error, spatial_phases = spatial_phases,
                                  spatial_phases_circ = spatial_phases_circ, spatial_fred = spatial_red,
-                                 spatial_green = spatial_green), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = 1390)}
+                                 spatial_green = spatial_green), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = p.height)}
   
   # PARTICLE-CELLS DISTANCES AND PLOT ####
   
@@ -1201,7 +1216,7 @@ for (i in seq(from = 1, to = length(files))){
   #' extract the cleaned trace from the period calculation algorithm
   detrended_traces = results$traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(results$traces)[2]))
   #' phase align all the traces
-  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = NA, debug = TRUE) %>% t()
+  aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = 6, debug = FALSE) %>% t()
   aligned_traces_norm <- as.data.frame(aligned_traces) %>%
     mutate(across(where(is.numeric), ~ (. - min(.)) / (max(.) - min(.))))  %>% as.matrix(.)
   t = as.numeric(rownames(aligned_traces_norm))
@@ -1227,8 +1242,15 @@ for (i in seq(from = 1, to = length(files))){
     )
     
   #' save long table containing traces
+  
+  if(saving){
   aligned_trx_path = file.path(foldername, paste0(filename, "_aligned_traces.rds"))
   saveRDS(aligned_traces_long, file = aligned_trx_path)
+  
+  aligned_trx_wide_path = file.path(foldername, paste0(filename, "_aligned_traces_wide.rds"))
+  saveRDS(aligned_traces_t, file = aligned_trx_wide_path)
+  print(paste0("Average trace of ", filename,  ": Saved"))
+  }
   
   #' get traces of groups
   close_traces = aligned_traces[, which(colnames(aligned_traces) %in% close_cells_IDs)]
