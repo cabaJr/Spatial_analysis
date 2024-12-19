@@ -17,6 +17,7 @@ for (package in pkg_req) {
 
 
  # FUNCTIONS #####
+# function to generate plot and perform statistical testing
 nested_anova_plot <- function(data, metric, distance_var, well = well, treatment_var, ylabel = "", xlabel = "", comparison = TRUE, test = "bonferroni", norm_test = TRUE, plot_colors, nudge = 0.5, step = 0.2, ...) {
   
   # Compute normality test if needed
@@ -143,6 +144,7 @@ nested_anova_plot <- function(data, metric, distance_var, well = well, treatment
   return(plot)
 }
 
+# function to save plots 
 savePlots = function(obj_to_save, savefold, extension, p.width = 1560, p.height = 1100) {
   for (i in seq_along(obj_to_save)) {
     # Check if the list has names; if not, use a default numeric index
@@ -159,11 +161,129 @@ savePlots = function(obj_to_save, savefold, extension, p.width = 1560, p.height 
     ggplot2::ggsave(plot_path, plot = obj_to_save[[i]], width = p.width, height = p.height, units = "px")
   }
 }
+
+# function to align traces to the mean phase of the group
+phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0, align_to = NA, debug = FALSE){
+  browser()
+  #' TODO check align phase value
+  phases = circular::minusPiPlusPi(circular(period_tbl$phase_rad, units = "rad"))
+  if(is.na(align_to)){
+    align_phase = circular::mean.circular(phases, na.rm = TRUE)
+  } else {align_phase = circular::as.circular((align_to/12)*pi, type = "angles", units = "radians", 
+                                              rotation = "clock", template = "none", modulo = "asis", zero = 0)}
+  ph_diff = align_phase - phases
+  adjust = circular::minusPiPlusPi(circular(ph_diff, units = "rad"))
+  adjust_frames = round(circular::conversion.circular(adjust, units = "hours")*2, 0)
+  # initialize new table to store vecs
+  traces_aligned <- replace(traces_table, all(), NA)
+  for (i in 1:dim(traces_table)[1]){
+    # get vector
+    trace = traces_table[i,]
+    adjust_fct = adjust_frames[i]
+    if(is.na(adjust_fct)){
+      clean_trace = rep(NA, dim(traces_table)[2])
+    } else if(adjust_fct == 0){
+      clean_trace = trace
+    } else if(adjust_fct < 0){
+      clean_trace = c(rep_len(NA, abs(adjust_fct)), trace[1:(length(trace)-abs(adjust_fct))])
+    } else if(adjust_fct > 0){
+      clean_trace = c(trace[(abs(adjust_fct)+1):length(trace)], rep_len(NA, abs(adjust_fct)))
+    }
+    traces_aligned[i,] = clean_trace
+    if(debug){
+      browser()
+      plot(x = 0:(dim(traces_table)[2]-1), y = trace, col = "red", type = "l")
+      lines(x = 0:(dim(traces_table)[2]-1), y =clean_trace, col = "blue", type = "l")
+    }
+  }
+  # trim start and end of table
+  # evaluate if all have been shifted in one direction
+  #' min_shift = min(adjust_frames, na.rm = TRUE)
+  #' max_shift = max(adjust_frames, na.rm = TRUE)
+  #' shift = min_shift*max_shift
+  #' if(shift > 0){
+  #'   #' case when all the shift happens in the same direction (need to cut only from one of the two ends)
+  #'   #' TODO complete trimming in another function
+  #' } else if(shift < 0){
+  #'   #' case when shift happens in both direction (you can use the min-max rune simply)
+  #'   traces_aligned_trim = traces_aligned[ , (max(adjust_frames, na.rm = TRUE)+1):(dim(traces_aligned)[2]+min(adjust_frames, na.rm = TRUE))]
+  #' }
+  
+  #traces_aligned_trim = traces_aligned[ , (max(adjust_frames, na.rm = TRUE)+1):(dim(traces_aligned)[2]+min(adjust_frames, na.rm = TRUE))]
+  browser()
+  return(traces_aligned)
+}
+
+computePeriod = function(df, excludeNC = FALSE, top = 30, bottom = 18, save.trace = FALSE, rm.start = 0, ...){
+  
+  #prepare table
+  data_df <- prep_table(df, rm.start)
+  
+  # analyse period and store result in list
+  unique_ids = unique(data_df$ID)
+  results_list <- list()
+  traces_list <- list()
+  plot_list <- list()
+  print("Computing period...")
+  pb <- txtProgressBar(min = 2, max = length(unique_ids), style = 3)
+  for (i in seq_len(length(unique_ids))) {
+    # Filter data for the current ID
+    ID = unique_ids[i]
+    toget = which(data_df$ID == ID)
+    data_ID <- data_df[toget,]
+    
+    # perform linear detrending
+    fit <- lm(data_ID$value ~ data_ID$t)
+    detrended_data <- residuals(fit)
+    
+    if(length(detrended_data == length(data_ID$values))){
+      data_ID$value <- detrended_data}
+    
+    # Estimate period and other parameters
+    result <- FFT_NLLS_analyse(data_ID, minPer = 11, maxPer = 32)
+    
+    # Add the ID to the result
+    result$ID <- as.integer(ID)
+    
+    # Append the result to the results list
+    results_list[[ID]] <- result
+    setTxtProgressBar(pb, i)
+    
+    # add the detrended trace to a list for export
+    traces_list[[ID]] <- detrended_data
+  }
+  close(pb)
+  print("Completed")
+  period_table = do.call(rbind, lapply(results_list, as.data.frame))
+  traces_table = do.call(cbind, lapply(traces_list, as.data.frame)) %>% t() %>% `rownames<-`(names(traces_list))
+  # round all digits in the table
+  period_table <- period_table %>%
+    dplyr::mutate(dplyr::across(.cols = -all_of("ID"), ~ round(., 2)))
+  # count total traces
+  period_counts <- sum(!is.na(period_table$phase_h))
+  # clean table of all values outside of limits and count valid traces
+  if(excludeNC == TRUE){
+    topvals <- which(period_table$period >= top)
+    bottomvals <- which(period_table$period <= bottom)
+    exclude = c(topvals, bottomvals)
+    period_table[exclude,] <- NA
+    
+    print(paste("Values >", top, "h | <", bottom, "h removed", sep = ""))
+  }
+  non_na_count <- sum(!is.na(period_table$phase_h))
+  
+  # list to return results and traces of period analysis
+  return_list = list(traces = traces_table,
+                     period_table = period_table) 
+  
+  return(return_list)
+}
+
  # EXECUTION ######
 
  # IMPORTING #####
 #' select home dir where to pull names and data from
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Ph_D\Proj_Tau\Tau_an_dev\wk5_hemislices\Left\test)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\Tau_an_dev\wk5_hemislices\Left)"
 
 files = list.files(path = wd, pattern = ".tif*$")
 filenames = stringr::str_remove(files, pattern = ".tif*")
@@ -179,11 +299,11 @@ missing_periods <- vector()
 missing_merg_tbls <- vector()
 missing_traces <- vector()
 
-# import all period tbls, distance matrices and merged tables
+# period tbls, distance matrices, merged tables, and aligned traces
 for (i in seq_len(length(files))){
   foldername = foldernames[i]
   filename = filenames[i]
-  
+  print(filename)
   #' import period tbls
   period_tbl_path = file.path(foldername, paste(filename, "_period_tbl.rds", sep = ""))
   if(file.exists(period_tbl_path)){
@@ -224,6 +344,15 @@ for (i in seq_len(length(files))){
     missing_traces <- c(missing_traces, filename)
   }
   
+  #' import aligned traces wide
+  align_trx_wide_path = file.path(foldername, paste(filename, "_aligned_traces_wide.rds", sep = ""))
+  if(file.exists(align_trx_wide_path)){
+    aligned_trx <- readRDS(align_trx_wide_path)
+    dataset_list$align.trx.wide[[filename]] <- aligned_trx
+  }else{
+    print(paste(filename, " aligned traces wide file missing."))
+    missing_traces <- c(missing_traces, filename)
+  }
   
 }
 
@@ -485,6 +614,145 @@ amplitude_dotplot_trace_allcells <- ggplot()+#merged_table, aes(x = distance, y 
   labs(title = "Period by Distance", x = "Distance from Particle (px)", y = "Period (h)")
 
  # aligned traces all together ####
+ 
+traces_list <- dataset_list$align.trx
+# merge all tables together adding info about sample
+ for(i in 1:length(traces_list)){
+  #import dataset
+  traces <- traces_list[[i]]
+  name = names(traces_list)[i]
+  # isolate treatment
+  treatments = c("FRED", "WT", "MUT")
+  match <- sapply(treatments, function(y) grepl(y, name))
+  treatment = treatments[match]
+  # assign values to columns
+  traces$sample = name
+  traces$treatment = treatment 
+  traces$ID = paste(name, traces$ID, sep = "_")
+  traces_annotated[[name]] = traces
+}
+
+# create average of each sample and save in list
+traces_summary_list = lapply(traces_annotated, function(traces){
+  traces_summary <- traces %>% 
+    dplyr::group_by(treatment, group, t) %>% 
+    dplyr::summarise(mean = mean(intensity, na.rm = TRUE),
+                     se = sd(intensity, na.rm = TRUE) / sqrt(n()),
+                     size = n(),
+                     .groups = "drop")
+  traces_summary$sample = unique(traces$sample)
+  return(traces_summary)
+})
+  
+# bind tables
+averaged_traces_bound = do.call(rbind, traces_summary_list) %>% `rownames<-`(NULL)
+
+all_cells_bound = do.call(rbind, traces_annotated) %>% `rownames<-`(NULL)
+
+# perform averages
+traces_summary_all_samples_weighted = averaged_traces_bound %>% 
+  dplyr::group_by(treatment, group, t) %>% 
+  dplyr::summarise(average = sum((mean*size), na.rm = TRUE)/sum(size, na.rm = TRUE),
+                   se = (sd((mean*size), na.rm = TRUE)/sum(size, na.rm = TRUE))/sqrt(length(unique(sample))),
+                   n = length(unique(sample)),
+                   cells = sum(size, na.rm = TRUE)
+                   )
+
+traces_summary_all_samples_unweighted <- averaged_traces_bound %>% 
+  dplyr::group_by(treatment, group, t) %>% 
+  dplyr::summarise(average = mean(mean, na.rm = TRUE),
+                   se = sd(mean, na.rm = TRUE)/sqrt(n()),
+                   n = n(),
+                   size = sum(size),
+                   .groups = "drop")
+
+all_cells_averaged <- all_cells_bound %>% 
+  dplyr::group_by(treatment, group, t) %>% 
+  dplyr::summarise(average = mean(intensity, na.rm = TRUE),
+                   se = sd(intensity, na.rm = TRUE) / sqrt(n()),
+                   size = n(),
+                   .groups = "drop")
+
+# plots
+weighted_mean_plot = ggplot2::ggplot(traces_summary_all_samples_weighted, aes(group = group))+
+  geom_ribbon(aes(x = t, ymin = average-se, ymax = average+se, alpha = 0.5, colour = group, fill = group))+
+  geom_line(aes(x = t, y = average, colour = group))+
+  ggplot2::scale_alpha_identity()+
+  scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
+  theme_minimal()+
+  theme(axis.line.y = element_line(linewidth = 1),
+        axis.line.x = element_line(linewidth = 1),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
+        plot.subtitle = element_text(size = 10, hjust = 0),
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x  = element_text(size = 20),
+        axis.title.y  = element_text(size = 20))
+
+# perform alignment to common trace
+re_aligned_traces <- 
+  #setNames(
+    lapply(
+      names(dataset_list$align.trx.wide),
+      function(x){
+        browser()
+        period.tbl = computePeriod(ch2_cells, filename, excludeNC = TRUE, top = 27, bottom = 16, rm.start = 0)
+        phase_align_trace(dataset_list$align.trx.wide[[x]], period.tbl)
+        },
+      dataset_list)#,
+    #names(dataset_list$align.trx.wide))
+
+# identify length of traces
+trx_len = setNames(lapply(re_aligned_traces, function(x){dim(x)[1]}), names(re_aligned_traces))
+
+# trim all traces to common length
+if(length(unique(unlist(trx_len))) > 1){
+  re_aligned_traces <- 
+    setNames(
+      lapply(
+        names(re_aligned_traces),
+        function(x){
+          # get difference with current trace table
+          difference <- trx_len[[x]] - min(unlist(trx_len))
+          if(difference > 0){
+            # trim cutting half from start and half from end
+            trimStart = round(difference/2)
+            diff2 = difference - trimStart
+            trimEnd = dim(re_aligned_traces[[x]])[2] - diff2
+            traces_trim = re_aligned_traces[[x]][,trimStart:trimEnd]
+            }
+          return(traces_trim)
+          },
+        trx_len, re_aligned_traces),
+      names(re_aligned_traces))
+  }
+
+# make all wide traces into long format
+list_traces_long = setNames(lapply(names(dataset_list$align.trx.wide), function(x){
+  traces = re_aligned_traces[[x]]
+  traces_long = tidyr::pivot_longer(traces,
+                                            cols = colnames(aligned_traces_t)[-1],
+                                            names_to = "ID",
+                                            values_to = "intensity")
+  traces_long$ID = as.numeric(traces_long$ID)
+  traces_long$sample = x
+  
+  # assign treatment
+  treatments = 
+  match_found <- sapply(c("FRED", "WT", "MUT"), function(y) grepl(y, x))
+  matching_patterns <- treatments[match_found]
+  # assign group values
+  
+}, re_aligned_traces), names(re_aligned_traces))
+
+# merge all tables into a single one 
+all_traces_aligned = do.call(rbind, list_traces_long)
+
+# plot
+
+
 
  # import all tables 
  # mixed model analysis of period ####
