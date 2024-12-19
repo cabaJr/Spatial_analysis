@@ -158,7 +158,7 @@ cell2particlesDistances = function(polygon_frames_list, cells_points, frame, ...
 }
 
 #' create plot of cells that are far/close
-highlight_cells <- function(evaluation_matrices, filename, colors, all_cells = grid_coord, scn_cells = grid_points_scn, scn_col = "grey", outside_col = "black") {
+highlight_cells <- function(evaluation_matrices, filename, colors, all_cells = grid_coord, scn_cells = grid_points_scn, scn_col = "grey", outside_col = "black", shape = 15, size = 2) {
   #' evaluation_matrices: list of matrices where each element represents a matrix for different conditions
   #' frame: the frame to evaluate
   #' colors: vector of colors corresponding to each matrix in `evaluation_matrices`
@@ -195,9 +195,10 @@ highlight_cells <- function(evaluation_matrices, filename, colors, all_cells = g
   plot_data$alphaval <- ifelse(plot_data$color == "black", 0, 1)
   # Create the plot
   plot <- ggplot(plot_data, aes(x = X, y = Y, color = color, alpha = alphaval)) +
-    geom_point() +
+    geom_point(shape = shape, size = size) +
     scale_color_identity() +
     scale_alpha_identity()+
+    scale_size_identity()+
     theme_minimal() +
     labs(title = paste(filename, "- Distance groups"), x = "X Coordinate", y = "Y Coordinate") +
     coord_fixed() +
@@ -482,7 +483,8 @@ FFT_NLLS_analyse = function(data, minPer = 15, maxPer = 32){
 circular_plot = function(data, path, saving = TRUE, ...){
   phases_rad = data
   if(!all(is.na(phases_rad))){
-    real_MeanPh <- circular::mean.circular(phases_rad, Rotation = "counter", na.rm = TRUE)
+    real_MeanPh <- circular::mean.circular(phases_rad, Rotation = "counter", na.rm = TRUE, type = "angles", units = "radians", 
+                                           template = "none", modulo = "asis", zero = 0)
     phases_rad = align_phase(phases_rad, CT = 6)
     phases = circular::circular(phases_rad, units = "radians", template = "clock24")
   }
@@ -495,7 +497,8 @@ circular_plot = function(data, path, saving = TRUE, ...){
     phases = NA
     real_MeanPh = NA
     plot.new()
-    circular::plot.circular(phases, bins = 24, axes = FALSE)
+    circular::plot.circular(phases, bins = 24, axes = FALSE, type = "angles", units = "radians", 
+                            rotation = "clock", template = "none", modulo = "asis", zero = 0)
     circular::axis.circular(circular(seq(0, 2*pi, pi/2)), zero=0, rotation = 'counter', labels=c("6", "00", "18", "12", "6"), tcl.text=0.12, cex = 1.5)
     title(paste(filename), line = 0)
     dev.off()
@@ -549,31 +552,57 @@ circStats_plot = function(data, path, colors){
   
   plot.new()
   # Create a circular plot
-  circular::plot.circular(NA, bins = 24, axes = FALSE)
+  circular::plot.circular(NA, bins = 24, axes = FALSE, type = "angles", units = "radians", 
+                          rotation = "clock", template = "none", modulo = "asis", zero = 0)
   # Add radial axis labels to the plot
-  circular::axis.circular(circular(seq(0, 2*pi, pi/2)), zero=0, rotation = 'counter', labels=c("6", "00", "18", "12", "6"), tcl.text=0.12, cex = 1.5)
+  circular::axis.circular(circular(seq(0, 2*pi, pi/2)), zero=0, rotation = 'counter', labels=c("6", "00", "18", "12", "6"), tcl.text=0.12, cex = 1.5, 
+                          units = "radians", template = "none", modulo = "asis")
   # Add arrows to the plot based on the mean and vector length
   # close arrow
   vectorLength = data["close_vec_len"][[1]]
   meanTest = data["close_meanPh"][[1]]
   variance = data["close_variance"][[1]]
   color = colors[1]
-  circular::arrows.circular(meanTest, vectorLength, length = 0.1, col = color, lwd = 3)
+  circular::arrows.circular(meanTest, vectorLength, length = 0.1, col = color, lwd = 3,
+                            rotation = "clock")
   # mid arrow
   vectorLength = data["mid_vec_len"][[1]]
   meanTest = data["mid_meanPh"][[1]]
   color = colors[2]
-  circular::arrows.circular(meanTest, vectorLength, length = 0.1, col = color, lwd = 3)
+  circular::arrows.circular(meanTest, vectorLength, length = 0.1, col = color, lwd = 3,
+                            rotation = "clock")
   # far arrow
   vectorLength = data["far_vec_len"][[1]]
   meanTest = data["far_meanPh"][[1]]
   color = colors[3]
-  circular::arrows.circular(meanTest, vectorLength, length = 0.1, col = color, lwd = 3)
+  circular::arrows.circular(meanTest, vectorLength, length = 0.1, col = color, lwd = 3, 
+                            rotation = "clock")
   
   # Add an empty title (the paste("") effectively removes the default title)
   title(paste(filename), line = 0)
   # close plot
   dev.off()
+}
+
+# group traces plot
+plot_group_traces = function(summary_data){
+  plot = ggplot2::ggplot(traces_summary, aes(group = group))+
+    geom_ribbon(aes(x = t, ymin = mean-se, ymax = mean+se, alpha = 0.5, colour = group, fill = group))+
+    geom_line(aes(x = t, y = mean, colour = group))+
+    ggplot2::scale_alpha_identity()+
+    scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
+    theme_minimal()+
+    theme(axis.line.y = element_line(linewidth = 1),
+          axis.line.x = element_line(linewidth = 1),
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
+          plot.subtitle = element_text(size = 10, hjust = 0),
+          axis.text.x = element_text(size = 15),
+          axis.text.y = element_text(size = 15),
+          axis.title.x  = element_text(size = 20),
+          axis.title.y  = element_text(size = 20))
+  return(plot)
 }
 
 # print period lengths
@@ -624,8 +653,6 @@ align_phase = function(data, CT = 6, ...){
 }
 
 # function to align traces to the mean phase of the group
-#' TODO add possibility to align to a specified phase. Provide phase in hours,
-#' then convert in radians and use as mean_phase
 phase_align_trace = function(traces_table, period_table, remove_start = 0, remove_end = 0, align_to = NA, debug = FALSE){
 #' TODO check align phase value
   phases = circular::minusPiPlusPi(circular(period_tbl$phase_rad, units = "rad"))
@@ -1013,16 +1040,18 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
 # FILEPATHS -----
 
 #' Base directory
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\4.12\#4\Raw data\4.12.4_part5_assem\adj\hemis\Left)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\Tau_an_dev\wk5_hemislices\Left)"
 wd = back_to_forw(wd)
 
 files = list.files(path = wd, pattern = ".tif*$")
 filenames = stringr::str_remove(files, pattern = ".tif*")
 foldernames = file.path(wd, paste(filenames, "_results", sep = ""))
 
+# reloading options
 saving = TRUE
 savingtRACE = TRUE
-
+RELOAD = FALSE
+RELOAD.MTX = TRUE
 # initialize table for circular values
 circ_summary = data.frame(matrix(nrow = 1, ncol = 9))
 colnames(circ_summary) = c("close_vec_len", "close_variance", "close_meanPh", "mid_vec_len", "mid_variance", "mid_meanPh", "far_vec_len", "far_variance", "far_meanPh")
@@ -1062,7 +1091,7 @@ for (i in seq(from = 1, to = length(files))){
   #' import file with particle analysis of Tau
   tau_parts_ROI_path = file.path(foldername, paste("SCN_puncta_ROIs", filename, "_.zip", sep = ""))
   tau_polygons_path = file.path(foldername, paste(filename, "_particle_polygons.rds", sep = ""))
-  if(file.exists(tau_polygons_path)){
+  if(!RELOAD & file.exists(tau_polygons_path)){
     tau_polygons <- readRDS(tau_polygons_path)
   }else{
     print("Starting ROIs import")
@@ -1099,7 +1128,7 @@ for (i in seq(from = 1, to = length(files))){
   # analyze period
   period_tbl_path = file.path(foldername, paste(filename, "_period_tbl.rds", sep = ""))
   detr_traces_path = file.path(foldername, paste(filename, "_detr_traces.rds", sep = ""))
-  if(file.exists(period_tbl_path)){
+  if(!RELOAD & file.exists(period_tbl_path)){
     period_tbl <- readRDS(period_tbl_path)
     detrended_traces <- readRDS(detr_traces_path)
   }else{
@@ -1147,7 +1176,7 @@ for (i in seq(from = 1, to = length(files))){
   
   #'calculate min distance of all cells to particles
   grid_vals_path = file.path(foldername, paste(filename, "_grid_vals.rds", sep = ""))
-  if(file.exists(grid_vals_path)){
+  if(!RELOAD.MTX & file.exists(grid_vals_path)){
     grid_vals <- readRDS(grid_vals_path)
   }else{
     #' initiate progress bar
@@ -1171,7 +1200,7 @@ for (i in seq(from = 1, to = length(files))){
   }
   
   distance_mtx_path = file.path(foldername, paste(filename, "_dist_mtx.rds", sep = ""))
-  if(file.exists(distance_mtx_path)){
+  if(!RELOAD.MTX & file.exists(distance_mtx_path)){
     distance_matrix <- readRDS(distance_mtx_path)
   }else{
     #' generate matrix of distances
@@ -1202,22 +1231,22 @@ for (i in seq(from = 1, to = length(files))){
   color_palette = c("#B23A48", "#2F9C95", "#B6DC76")
   
   #' generate plot to see which cells are close and far from particles
-  groups_cells_plot = highlight_cells(evaluation_matrices = list(close_cells_matrix, between_cells_matrix, far_cells_matrix), filename = filename, colors = color_palette)
+  groups_cells_plot = highlight_cells(evaluation_matrices = list(close_cells_matrix, between_cells_matrix, far_cells_matrix), filename = filename, colors = color_palette, shape = 15, size = 2)
   
   
   #' save plot
   if(saving){
-    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 2200, p.height = 1390)}
+    savePlots(obj_to_save = list(groups_cells_plot = groups_cells_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 1200, p.height = p.height)}
   
   # LOOK AT TRACES IN DIFFERENT GROUPS #### 
   #' TODO comment code and create function out of it
   
   #' extract the cleaned trace from the period calculation algorithm
-  detrended_traces = results$traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(results$traces)[2]))
+  detrended_traces = detrended_traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(detrended_traces)[2]))
   #' phase align all the traces
   aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = 6, debug = FALSE) %>% t()
   aligned_traces_norm <- as.data.frame(aligned_traces) %>%
-    mutate(across(where(is.numeric), ~ (. - min(.)) / (max(.) - min(.))))  %>% as.matrix(.)
+    mutate(across(where(is.numeric), ~ (. - min(., na.rm = TRUE)) / (max(., na.rm = TRUE) - min(., na.rm = TRUE))))  %>% as.matrix(.)
   t = as.numeric(rownames(aligned_traces_norm))
   aligned_traces_t = cbind(t, aligned_traces_norm) %>% as.data.frame()
   aligned_traces_long = tidyr::pivot_longer(aligned_traces_t,
@@ -1251,36 +1280,22 @@ for (i in seq(from = 1, to = length(files))){
   print(paste0("Average trace of ", filename,  ": Saved"))
   }
   
-  #' get traces of groups
-  close_traces = aligned_traces[, which(colnames(aligned_traces) %in% close_cells_IDs)]
-  between_traces = aligned_traces[, which(colnames(aligned_traces) %in% between_cells_IDs)]
-  far_traces = aligned_traces[, which(colnames(aligned_traces) %in% far_cells_IDs)]
-  
-  #' remove cells with NA
-  close_traces_clean = close_traces[, -c(unique(which(is.na(close_traces), arr.ind=TRUE)[,2]))]
-  write.csv(close_traces_clean, "clean.csv")
-  
+  #' #' get traces of groups
+  #' close_traces = aligned_traces[, which(colnames(aligned_traces) %in% close_cells_IDs)]
+  #' between_traces = aligned_traces[, which(colnames(aligned_traces) %in% between_cells_IDs)]
+  #' far_traces = aligned_traces[, which(colnames(aligned_traces) %in% far_cells_IDs)]
+  #' 
+  #' #' remove cells with NA
+  #' close_traces_clean = close_traces[, -c(unique(which(is.na(close_traces), arr.ind=TRUE)[,2]))]
+  #' write.csv(close_traces_clean, "clean.csv")
+ 
   # make plots
-  all_plot = ggplot2::ggplot(traces_summary, aes(group = group))+
-    geom_ribbon(aes(x = t, ymin = mean-se, ymax = mean+se, alpha = 0.5, colour = group, fill = group))+
-    geom_line(aes(x = t, y = mean, colour = group))+
-    ggplot2::scale_alpha_identity()+
-    scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
-    theme_minimal()+
-    theme(axis.line.y = element_line(linewidth = 1),
-          axis.line.x = element_line(linewidth = 1),
-          panel.grid.minor.y = element_blank(),
-          panel.grid.major.y = element_blank(),
-          panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
-          plot.subtitle = element_text(size = 10, hjust = 0),
-          axis.text.x = element_text(size = 15),
-          axis.text.y = element_text(size = 15),
-          axis.title.x  = element_text(size = 20),
-          axis.title.y  = element_text(size = 20))
-  
-  close_plot_all = ggplot2::ggplot(data = aligned_traces_long)+
-    geom_line(aes(x = t, y = intensity, group = ID))+
-    scale_x_discrete(t, breaks = c(seq(12, 172, by = 24)))
+    
+  all_plot = plot_group_traces(traces_summary)
+    
+  # close_plot_all = ggplot2::ggplot(data = aligned_traces_long)+
+  #   geom_line(aes(x = t, y = intensity, group = ID))+
+  #   scale_x_discrete(t, breaks = c(seq(12, 172, by = 24)))
   
   if(saving){
     savePlots(obj_to_save = list(distance_groups_trace_plot = all_plot), filename = filename, basepath = newdir, extension = "svg", p.width = 2300, p.height = 1390)}
