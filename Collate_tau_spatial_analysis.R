@@ -672,6 +672,13 @@ all_cells_averaged <- all_cells_bound %>%
                    se = sd(intensity, na.rm = TRUE) / sqrt(n()),
                    size = n(),
                    .groups = "drop")
+#' TODO
+#' remove NA vals
+#' or re run the analysis on those three samples
+#' plot the different averages
+#' compare the same group in different treatments
+#' 
+
 
 # plots
 weighted_mean_plot = ggplot2::ggplot(traces_summary_all_samples_weighted, aes(group = group))+
