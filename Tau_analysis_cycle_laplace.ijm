@@ -38,7 +38,7 @@ prefixscn = "SCN";
 
 // get whole sliceROI from function
 print("Defining slice area");
-wholeSliceROI = defineSlice(channel_gcamp, 250, title, resultDir, originalImg);
+wholeSliceROI = defineSlice(channel_gcamp, 280, title, resultDir, originalImg);
 print("Area defined succesfully!");
 
 // threshold image
