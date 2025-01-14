@@ -1037,10 +1037,11 @@ pull_plots = function(base.dir, plot.name, dir.name, file.names){
   }, plots.dir.second)
 }
 
+
 # FILEPATHS -----
 
 #' Base directory
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\Tau_an_dev\wk5_hemislices\Left)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\Tau_an_dev\wk5_hemislices\Left2)"
 wd = back_to_forw(wd)
 
 files = list.files(path = wd, pattern = ".tif*$")
@@ -1245,6 +1246,7 @@ for (i in seq(from = 1, to = length(files))){
   detrended_traces = detrended_traces %>% `colnames<-`(seq(0, by = 0.5, length.out = dim(detrended_traces)[2]))
   #' phase align all the traces
   aligned_traces = phase_align_trace(detrended_traces, period_table = period_tbl, align_to = 6, debug = FALSE) %>% t()
+  #' normalize traces in 0-1 interval
   aligned_traces_norm <- as.data.frame(aligned_traces) %>%
     mutate(across(where(is.numeric), ~ (. - min(., na.rm = TRUE)) / (max(., na.rm = TRUE) - min(., na.rm = TRUE))))  %>% as.matrix(.)
   t = as.numeric(rownames(aligned_traces_norm))
