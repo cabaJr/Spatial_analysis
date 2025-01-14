@@ -283,7 +283,7 @@ computePeriod = function(df, excludeNC = FALSE, top = 30, bottom = 18, save.trac
 
  # IMPORTING #####
 #' select home dir where to pull names and data from
-wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\Tau_an_dev\wk5_hemislices\Left)"
+wd = r"(C:\Users\mf420\UK Dementia Research Institute Dropbox\Brancaccio Lab\Marco F\Proj_Tau\Tau_an_dev\wk5_hemislices\Left2)"
 
 files = list.files(path = wd, pattern = ".tif*$")
 filenames = stringr::str_remove(files, pattern = ".tif*")
@@ -358,7 +358,7 @@ for (i in seq_len(length(files))){
 
 print("Datasets added!")
 
- # DISTANCE GROUS ####
+ # DISTANCE GROUPS ####
 #' compare groups across conditions for only two sample being compared
 
 limit1 = 3
@@ -411,13 +411,19 @@ merged_list <- setNames(lapply(names(merged_list), function(name) {
   return(df)
 }), names(distance_list))
 
-plot_folder = file.path(wd, "spatial_analysis2")
+plot_folder = file.path(wd, "spatial_analysis")
 
 if(!dir.exists(plot_folder)){
   dir.create(plot_folder)
 }
 
  # nested anova plots of period, amplitude, error ####
+
+#' merge all the tables in the merged list into a single table
+merged_table = data.table::rbindlist(merged_list, idcol = "sample")
+
+#' Create nested men plots that summarise all the samples 
+
 {
   period_mean_plot_nest <- nested_anova_plot(
     data = merged_table,
@@ -551,6 +557,9 @@ circ_summary = read.csv(file = file.path(wd, "circular_stats.csv"), row)
   savePlots(obj_to_save = mu_plot,  savefold = plot_folder, extension = "png", p.width = 1000)
 }
 
+
+ # descriptive plots averaging all samples ####
+
 #' merge together all tables containing period and spatial data 
 merged_table = data.table::rbindlist(merged_list, idcol = "sample")
 
@@ -558,8 +567,6 @@ meta_merged_table =
   merged_table %>%
   group_by(sample, distance_group, treatment) %>%
   summarise(n = length(ID))
-
- # descriptive plots averaging all samples ####
 
 #' plot representing how many cells are present in every distance area per sample
 meta_plot = ggplot2::ggplot(data = meta_merged_table, aes(x = distance_group, y = n, color = treatment))+
@@ -616,7 +623,8 @@ amplitude_dotplot_trace_allcells <- ggplot()+#merged_table, aes(x = distance, y 
  # aligned traces all together ####
  
 traces_list <- dataset_list$align.trx
-# merge all tables together adding info about sample
+traces_annotated = list()
+# merge all tables together adding info about sample name and treatment
  for(i in 1:length(traces_list)){
   #import dataset
   traces <- traces_list[[i]]
@@ -645,8 +653,12 @@ traces_summary_list = lapply(traces_annotated, function(traces){
 })
   
 # bind tables
+#' averaged_traces_bound contains all the averages of traces calculated in the
+#' traces_summary_list in one table. Each average is the mean trace from one
+#' sample and one area 
 averaged_traces_bound = do.call(rbind, traces_summary_list) %>% `rownames<-`(NULL)
 
+#' all_cells_bound has all the traces from the traces_annotated in one table
 all_cells_bound = do.call(rbind, traces_annotated) %>% `rownames<-`(NULL)
 
 # perform averages
@@ -676,8 +688,73 @@ all_cells_averaged <- all_cells_bound %>%
 #' remove NA vals
 #' or re run the analysis on those three samples
 #' plot the different averages
+
 #' compare the same group in different treatments
-#' 
+close_cells_avg = dplyr::filter(all_cells_averaged, group == "close")
+mid_cells_avg = dplyr::filter(all_cells_averaged, group == "mid")
+far_cells_avg = dplyr::filter(all_cells_averaged, group == "far")
+
+#' save tables
+close_cells_path = file.path(plot_folder, "close_avgs.csv")
+write.csv(close_cells_avg, file = close_cells_path)
+
+mid_cells_path = file.path(plot_folder, "mid_avgs.csv")
+write.csv(mid_cells_avg, file = mid_cells_path)
+
+far_cells_path = file.path(plot_folder, "far_avgs.csv")
+write.csv(far_cells_avg, file = far_cells_path)
+
+#' plot comparison
+close_cells_plot = ggplot2::ggplot(close_cells_avg)+
+  ggplot2::geom_ribbon(aes(x = t, ymin = average-se, ymax = average+se, alpha = 0.5, colour = treatment, fill = treatment))+
+  geom_line(aes(x = t, y = average, colour = treatment))+
+  ggplot2::scale_alpha_identity()+
+  scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
+  theme_minimal()+
+  theme(axis.line.y = element_line(linewidth = 1),
+        axis.line.x = element_line(linewidth = 1),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
+        plot.subtitle = element_text(size = 10, hjust = 0),
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x  = element_text(size = 20),
+        axis.title.y  = element_text(size = 20))
+
+mid_cells_plot = ggplot2::ggplot(mid_cells_avg)+
+  ggplot2::geom_ribbon(aes(x = t, ymin = average-se, ymax = average+se, alpha = 0.5, colour = treatment, fill = treatment))+
+  geom_line(aes(x = t, y = average, colour = treatment))+
+  ggplot2::scale_alpha_identity()+
+  scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
+  theme_minimal()+
+  theme(axis.line.y = element_line(linewidth = 1),
+        axis.line.x = element_line(linewidth = 1),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
+        plot.subtitle = element_text(size = 10, hjust = 0),
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x  = element_text(size = 20),
+        axis.title.y  = element_text(size = 20))
+
+far_cells_plot = ggplot2::ggplot(far_cells_avg)+
+  ggplot2::geom_ribbon(aes(x = t, ymin = average-se, ymax = average+se, alpha = 0.5, colour = treatment, fill = treatment))+
+  geom_line(aes(x = t, y = average, colour = treatment))+
+  ggplot2::scale_alpha_identity()+
+  scale_x_continuous(name = "Time (h)", breaks = seq(0, as.integer(max(t)), by = 24), minor_breaks = seq(12, as.integer(max(t)), by = 24))+
+  theme_minimal()+
+  theme(axis.line.y = element_line(linewidth = 1),
+        axis.line.x = element_line(linewidth = 1),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(linewidth = 0.5, linetype = "88", colour = "black"),
+        plot.subtitle = element_text(size = 10, hjust = 0),
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x  = element_text(size = 20),
+        axis.title.y  = element_text(size = 20))
 
 
 # plots
