@@ -1039,7 +1039,7 @@ savePlots = function(obj_to_save, basepath, filename = "", extension, p.width = 
 
 # move plots in separate folder
 pull_plots = function(base.dir, plot.name, dir.name, file.names, mainfold = FALSE, second_fold = ""){
-  # browser()
+  
   folder.vec <- sapply(file.names, function(filename, base.dir, mainfold, second_fold){
     if(mainfold){
       file.path(base.dir, paste0(filename, "_results"))
