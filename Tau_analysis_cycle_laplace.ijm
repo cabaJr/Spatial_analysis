@@ -46,7 +46,7 @@ area = true;
 gammasave = true;
 closeImg = false;
 threshold = 300;
-filterSize = 6;
+filterSize = 4;
 print("Preparing stack to be thresholded");
 //threshold_path = threshold_prep(originalImg, channel_fred, area, wholeSliceROI, resultDir, gammasave, closeImg);
 threshold_path = laplaceThresholdStack(originalImg, channel_fred, area, wholeSliceROI, resultDir, closeImg, threshold); 
